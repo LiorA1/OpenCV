@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">MySecondCVApplication</string>
+    <string name="textview">TextView</string>
+    <string name="miata">miata</string>
+    <string name="buttonCompare">Button</string>
+    <string name="buttonbf">ButtonBF</string>
+    <string name="buttonknn">ButtonKnn</string>
+</resources>
