@@ -88,7 +88,7 @@ public class MainActivity extends AppCompatActivity
     public void shapeDet(View view)
     {
         Log.v("message","Start of function call");
-        ImageView imageView = findViewById(R.id.imageViewMatches);
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
         TextView textViewMy = findViewById(R.id.textViewDist);
         textViewMy.setMovementMethod(new ScrollingMovementMethod());
 
@@ -101,6 +101,13 @@ public class MainActivity extends AppCompatActivity
         Random rng = new Random(12345);
 
 
+        /*
+        Bitmap imageMatched = Bitmap.createBitmap(img1.cols(), img1.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(img1, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+        */
+
+
         //Image Input :
         Bitmap one =
                 drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
@@ -108,41 +115,30 @@ public class MainActivity extends AppCompatActivity
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
         one.recycle();
 
+        // covert the image to gray scale.
+        Mat srcGray = new Mat();
+        Imgproc.cvtColor(img1, srcGray, Imgproc.COLOR_BGR2GRAY);
+        img1.release();
 
 
         // Pyramid down :
         // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
-        Mat pyrDown = new Mat();
-        Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
-        img1.release();
+        Mat grayPyrDown = new Mat();
+        Imgproc.pyrDown(srcGray, grayPyrDown, new Size(grayPyrDown.cols() / 2, grayPyrDown.rows() / 2));
+        srcGray.release();
 
 
+
+
+        // Blur the image.
         /*
-        for(int j = 0 ; j < ROUNDS_OF_BLUR ; j++)
+        for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
         {
-            for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
-            {
-                Imgproc.medianBlur(grayPyrDown, grayPyrDown, i);
-            }
-            System.gc();
+            Imgproc.medianBlur(grayPyrDown, grayPyrDown, i);
         }
-
-        //*/
-
-        Imgproc.medianBlur(pyrDown, pyrDown, 5);
-
-        // covert the image to gray scale.
-        Mat pyrDownGray = new Mat();
-        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
-        pyrDown.release();
+        */
 
 
-
-        Bitmap imageMatched = Bitmap.createBitmap(pyrDownGray.cols(), pyrDownGray.rows(), Bitmap.Config.RGB_565);
-        Utils.matToBitmap(pyrDownGray, imageMatched);
-        imageView.setImageBitmap(imageMatched);
-
-        /*
         // operate Canny filter :
         // https://docs.opencv.org/3.4.5/da/d5c/tutorial_canny_detector.html
         Mat grayDownCanny = new Mat();
@@ -151,26 +147,35 @@ public class MainActivity extends AppCompatActivity
 
 
 
-        Mat grayDownCannyDilate1 = new Mat();
-        Imgproc.medianBlur(grayDownCanny, grayDownCannyDilate1,3);
-        grayDownCanny.release();
-
-
-
-
-        //Imgproc.medianBlur(grayDownCannyDilate1, grayDownCannyDilate2,3);
-
-
         // Dilate the image :
         // https://docs.opencv.org/3.4.5/db/df6/tutorial_erosion_dilatation.html
         Mat grayDownCannyDilate = new Mat();
-        Imgproc.dilate(grayDownCannyDilate1,
+        Imgproc.dilate(grayDownCanny,
                 grayDownCannyDilate,
                 new Mat(),
                 new Point(-1,1), 1);
+        grayDownCanny.release();
 
 
-        grayDownCannyDilate1.release();
+        // Blur the image.
+
+        for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
+        {
+            Imgproc.medianBlur(grayDownCannyDilate, grayDownCannyDilate, i);
+        }
+
+        Imgproc.GaussianBlur(grayDownCannyDilate,
+                grayDownCannyDilate,
+                new Size(5,5), 2, 2);
+
+
+
+        Bitmap imageMatched =
+                Bitmap.createBitmap(grayDownCannyDilate.cols(), grayDownCannyDilate.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(grayDownCannyDilate, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+        /*
 
 
 
