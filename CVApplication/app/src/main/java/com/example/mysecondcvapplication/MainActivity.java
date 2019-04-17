@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity
         int elementType = Imgproc.CV_SHAPE_RECT;
         int MAX_KERNEL_LENGTH = 31;
         final int MAX_THRESHOLD = 255;
+        final int ROUNDS_OF_BLUR = 2;
         int threshold = 100;
         Random rng = new Random(12345);
 
@@ -103,25 +104,45 @@ public class MainActivity extends AppCompatActivity
         //Image Input :
         Bitmap one =
                 drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
-
         Mat img1 = new Mat();
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
         one.recycle();
 
-        // covert the image to gray scale.
-        Mat srcGray = new Mat();
-        Imgproc.cvtColor(img1, srcGray, Imgproc.COLOR_BGR2GRAY);
-        img1.release();
 
 
         // Pyramid down :
         // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
-        Mat grayPyrDown = new Mat();
-        Imgproc.pyrDown(srcGray, grayPyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
-        srcGray.release();
+        Mat pyrDown = new Mat();
+        Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        img1.release();
+
+
+        /*
+        for(int j = 0 ; j < ROUNDS_OF_BLUR ; j++)
+        {
+            for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
+            {
+                Imgproc.medianBlur(grayPyrDown, grayPyrDown, i);
+            }
+            System.gc();
+        }
+
+        //*/
+
+        Imgproc.medianBlur(pyrDown, pyrDown, 5);
+
+        // covert the image to gray scale.
+        Mat pyrDownGray = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        pyrDown.release();
 
 
 
+        Bitmap imageMatched = Bitmap.createBitmap(pyrDownGray.cols(), pyrDownGray.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(pyrDownGray, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+        /*
         // operate Canny filter :
         // https://docs.opencv.org/3.4.5/da/d5c/tutorial_canny_detector.html
         Mat grayDownCanny = new Mat();
@@ -131,46 +152,45 @@ public class MainActivity extends AppCompatActivity
 
 
         Mat grayDownCannyDilate1 = new Mat();
-        /*
-        Imgproc.GaussianBlur(grayDownCanny,
-                grayDownCannyDilate1,
-                new Size(3,3),
-                2);
-        */
-
         Imgproc.medianBlur(grayDownCanny, grayDownCannyDilate1,3);
-        Mat grayDownCannyDilate2 = new Mat();
-        Imgproc.medianBlur(grayDownCannyDilate1, grayDownCannyDilate2,3);
+        grayDownCanny.release();
+
+
+
+
+        //Imgproc.medianBlur(grayDownCannyDilate1, grayDownCannyDilate2,3);
 
 
         // Dilate the image :
         // https://docs.opencv.org/3.4.5/db/df6/tutorial_erosion_dilatation.html
         Mat grayDownCannyDilate = new Mat();
-        Imgproc.dilate(grayDownCannyDilate2,
+        Imgproc.dilate(grayDownCannyDilate1,
                 grayDownCannyDilate,
                 new Mat(),
                 new Point(-1,1), 1);
 
-        grayDownCanny.release();
+
         grayDownCannyDilate1.release();
 
 
 
-        Bitmap imageMatched = Bitmap.createBitmap(grayDownCannyDilate.cols(), grayDownCannyDilate.rows(), Bitmap.Config.RGB_565);
-        Utils.matToBitmap(grayDownCannyDilate, imageMatched);
-        imageView.setImageBitmap(imageMatched);
-
-
-        /*
         Imgproc.GaussianBlur(grayDownCannyDilate,
                 grayDownCannyDilate,
-                new Size(3,3),
+                new Size(5,5),
                 2);
 
 
 
 
-        /*
+        Mat grayDownCannyDilate2 = new Mat();
+        Core.bitwise_not(grayDownCannyDilate, grayDownCannyDilate2);
+
+        Bitmap imageMatched = Bitmap.createBitmap(grayDownCannyDilate2.cols(), grayDownCannyDilate2.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(grayDownCannyDilate2, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+
+
         // Lior : maybe try to "open" / "close", the picture ?
         // https://docs.opencv.org/3.4.5/d3/dbe/tutorial_opening_closing_hats.html
 
@@ -184,6 +204,14 @@ public class MainActivity extends AppCompatActivity
 
 
 
+
+
+
+
+        /*
+
+
+
         // find contours:
         // https://docs.opencv.org/3.4.5/df/d0d/tutorial_find_contours.html
         List<MatOfPoint> contours = new ArrayList<>();
@@ -193,6 +221,35 @@ public class MainActivity extends AppCompatActivity
                 hierarchy,
                 Imgproc.RETR_EXTERNAL,
                 Imgproc.CHAIN_APPROX_SIMPLE);
+
+
+
+
+        /*
+
+        // Draw contours:
+        Mat drawing = Mat.zeros(grayDownCannyDilate.size(), CvType.CV_8UC3);
+
+        for (int i = 0; i < contours.size(); i++)
+        {
+            Scalar color = new Scalar(rng.nextInt(256), rng.nextInt(256), rng.nextInt(256));
+            Imgproc.drawContours(drawing, contours, i, color, 4, Core.LINE_8, hierarchy, 0, new Point());
+        }
+
+
+
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(drawing.cols(), drawing.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(drawing, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+        /*
+
+        Bitmap imageMatched = Bitmap.createBitmap(grayDownCannyDilate.cols(), grayDownCannyDilate.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(grayDownCannyDilate, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
 
 
         /*
