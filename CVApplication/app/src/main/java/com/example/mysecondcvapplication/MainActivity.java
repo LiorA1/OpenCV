@@ -255,6 +255,47 @@ public class MainActivity extends AppCompatActivity
 
 
 
+    public void morphGradient(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        //one.recycle(); //Undefined behaviour ..
+        System.gc();
+
+        // downsize the image.
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 4, img1.rows() / 4));
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        img1.release();
+
+        int morphOpType = Imgproc.MORPH_GRADIENT;
+        int elementType = Imgproc.CV_SHAPE_RECT;
+        int kernelSize = 5;
+
+        Mat element = Imgproc.getStructuringElement(elementType,
+                new Size(2 * kernelSize + 1, 2 * kernelSize + 1),
+                new Point(kernelSize, kernelSize));
+
+        Mat res = new Mat();
+        Imgproc.morphologyEx(pyrDown, res, morphOpType, element);
+        pyrDown.release();
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(res.cols(), res.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(res, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+        Log.v("message","End of function call");
+    }
 
     public void histogrhamEqual(View view)
     {
@@ -320,14 +361,7 @@ public class MainActivity extends AppCompatActivity
         final int MAX_THRESHOLD = 255;
         final int ROUNDS_OF_BLUR = 2;
         int threshold = 100;
-        Random rng = new Random(12345);
 
-
-        /*
-        Bitmap imageMatched = Bitmap.createBitmap(img1.cols(), img1.rows(), Bitmap.Config.RGB_565);
-        Utils.matToBitmap(img1, imageMatched);
-        imageViewMy.setImageBitmap(imageMatched);
-        */
 
 
         //Image Input :
@@ -335,20 +369,21 @@ public class MainActivity extends AppCompatActivity
                 drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
         Mat img1 = new Mat();
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
-        one.recycle(); //Undefined behaviour ..
+        System.gc();
 
 
         // Pyramid down :
         // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
         Mat pyrDown = new Mat();
         Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 4, img1.rows() / 4));
-        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
         img1.release();
 
         // convert the image to gray scale.
         Mat pyrDownGray = new Mat();
         Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
-        //pyrDown.release();
+        pyrDown.release();
 
 
         // Blur the image.
@@ -359,25 +394,36 @@ public class MainActivity extends AppCompatActivity
         // Blur the image.
         for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
         {
-            Imgproc.medianBlur(pyrDownGray, pyrDownGray, i);
+            //Imgproc.medianBlur(pyrDownGray, pyrDownGray, i);
+
+            Imgproc.GaussianBlur(pyrDownGray,
+                            pyrDownGray,
+                            new Size(i,i), 1, 1);
+            //
         }
 
 
-        // operate Canny filter :
-        // https://docs.opencv.org/3.4.5/da/d5c/tutorial_canny_detector.html
-        Mat grayDownCanny = new Mat();
-        Imgproc.Canny(pyrDownGray, grayDownCanny, 10, 70);
-        pyrDownGray.release();
-
-
+        Bitmap imageMatched = Bitmap.createBitmap(pyrDownGray.cols(), pyrDownGray.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(pyrDownGray, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+        /*
         // Dilate the image :
         // https://docs.opencv.org/3.4.5/db/df6/tutorial_erosion_dilatation.html
-        Mat grayDownCannyDilate = new Mat();
-        Imgproc.dilate(grayDownCanny,
-                grayDownCannyDilate,
+        Mat pyrDownGrayDilate = new Mat();
+        Imgproc.dilate(pyrDownGray,
+                pyrDownGrayDilate,
                 new Mat(),
                 new Point(-1,1), 1);
-        grayDownCanny.release();
+        pyrDownGray.release();
+
+        // operate Canny filter :
+        // https://docs.opencv.org/3.4.5/da/d5c/tutorial_canny_detector.html
+        Mat pyrDownGrayDilateCanny = new Mat();
+        Imgproc.Canny(pyrDownGrayDilate, pyrDownGrayDilateCanny, 10, 100);
+        pyrDownGrayDilate.release();
+
+
+
 
 
         //Core.bitwise_not(grayDownCannyDilate, grayDownCannyDilate);
@@ -397,7 +443,7 @@ public class MainActivity extends AppCompatActivity
         // Bitwise AND
         //Mat res = new Mat();
         //Core.bitwise_and(downCannyDilateBGRA, pyrDown, res);
-        pyrDown.release();
+        //pyrDown.release();
         //downCannyDilateBGRA.release();
 
 
@@ -408,33 +454,32 @@ public class MainActivity extends AppCompatActivity
         // https://docs.opencv.org/3.4.5/d3/dbe/tutorial_opening_closing_hats.html
 
 
-
-
-
-
-
         // find contours:
         // https://docs.opencv.org/3.4.5/df/d0d/tutorial_find_contours.html
         List<MatOfPoint> contours = new ArrayList<>();
         Mat hierarchy = new Mat();
-        Imgproc.findContours(grayDownCannyDilate,
+        Imgproc.findContours(pyrDownGrayDilateCanny,
                 contours,
                 hierarchy,
                 Imgproc.RETR_EXTERNAL,
                 Imgproc.CHAIN_APPROX_SIMPLE);
 
 
+        // back to bgra format.(FAIL)
         Mat fres = new Mat();
-        Imgproc.cvtColor(grayDownCannyDilate, fres, Imgproc.COLOR_GRAY2BGRA);
-        grayDownCannyDilate.release();
+        Imgproc.cvtColor(pyrDownGrayDilateCanny, fres, Imgproc.COLOR_GRAY2BGRA);
+        pyrDownGrayDilateCanny.release();
+
 
         for ( int contourIdx = 0; contourIdx < contours.size(); contourIdx++ )
         {
             // Minimum size allowed for consideration
             MatOfPoint2f approxCurve = new MatOfPoint2f();
             MatOfPoint2f contour2f = new MatOfPoint2f( contours.get(contourIdx).toArray() );
+
             //Processing on mMOP2f1 which is in type MatOfPoint2f
             double approxDistance = Imgproc.arcLength(contour2f, true)*0.02;
+            // ?
             Imgproc.approxPolyDP(contour2f, approxCurve, approxDistance, true);
             contour2f.release();
 
@@ -443,15 +488,13 @@ public class MainActivity extends AppCompatActivity
             approxCurve.release();
 
             // Get bounding rect of contour
-
             org.opencv.core.Rect rect = Imgproc.boundingRect(points);
 
+            // draw the rectangle inside fres.
             Imgproc.rectangle(fres,
                     new Point(rect.x, rect.y),
                     new Point(rect.x + rect.width, rect.y + rect.height),
                     new Scalar(255, 0, 0, 255), 10);
-
-
 
         }
 
