@@ -29,6 +29,7 @@ import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
+import org.opencv.core.Range;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.features2d.BFMatcher;
@@ -40,6 +41,7 @@ import org.opencv.imgproc.CLAHE;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -306,10 +308,22 @@ public class MainActivity extends AppCompatActivity
 
         //Image Input :
         Bitmap one =
-                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1303_cutted, this.getTheme()));
         Mat img1 = new Mat();
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
         //one.recycle(); //Undefined behaviour ..
+
+        imageViewMy.setImageBitmap(one);
+
+        try
+        {
+            Thread.sleep(5000);
+        }
+        catch (InterruptedException e)
+        {
+            e.printStackTrace();
+        }
+
         System.gc();
 
         // downsize the image.
@@ -324,12 +338,16 @@ public class MainActivity extends AppCompatActivity
         pyrDown.release();
 
 
+        // equalize Hist. , using CLAHE.
+        // https://docs.opencv.org/master/d4/d1b/tutorial_histogram_equalization.html
         Mat img1EH = new Mat();
         CLAHE clahe = Imgproc.createCLAHE();
         clahe.apply(pyrDownGray, img1EH);
         //Imgproc.equalizeHist(pyrDownGray, img1EH);
         pyrDownGray.release();
         clahe.clear();
+
+
 
         Imgproc.cvtColor(img1EH, img1EH, Imgproc.COLOR_GRAY2BGR);
         Bitmap imageMatched = Bitmap.createBitmap(img1EH.cols(), img1EH.rows(), Bitmap.Config.RGB_565);
@@ -338,7 +356,6 @@ public class MainActivity extends AppCompatActivity
 
 
         Log.v("message","End of function call");
-
 
     }
 
@@ -1246,7 +1263,7 @@ public class MainActivity extends AppCompatActivity
 
 
         //Image 1
-        Drawable d = getResources().getDrawable(R.drawable.queryc1_1, this.getTheme());
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1247cutted1, this.getTheme());
         Bitmap one = drawableToBitmap(d);
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
         //Imgproc.resize(img1, img1re, new Size(1000, 1000));
@@ -1258,7 +1275,7 @@ public class MainActivity extends AppCompatActivity
 
 
         //Image 2
-        d = getResources().getDrawable(R.drawable.db3, this.getTheme());
+        d = getResources().getDrawable(R.drawable.dsc_1247, this.getTheme());
         Bitmap two = drawableToBitmap(d);
         Utils.bitmapToMat(two, img2, true);// moving two to img2 Mat structure.
         //Imgproc.resize(img2, img2re, new Size(4000, 4000));
@@ -1470,6 +1487,207 @@ public class MainActivity extends AppCompatActivity
 
 
 
+    public void HoughLinesRun(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageView = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        //yourTextView.setMovementMethod(new ScrollingMovementMethod());
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Mat mask = new Mat();
+        Mat img1 = new Mat();
+        Mat img1re = new Mat();
+
+
+        // Load the images
+        //Image 1
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1304_cutted, this.getTheme());
+        Bitmap one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+
+        // Edge Detction :
+        Mat cannyImg = new Mat();
+        Imgproc.Canny(img1re, cannyImg, 50, 200, 3, false);
+        img1re.release();
+
+        // Copy Edges, to the image that will display the results in BGR format.
+        Mat cannyColor = new Mat();
+        Imgproc.cvtColor(cannyImg, cannyColor, Imgproc.COLOR_GRAY2BGR);
+        Mat cannyColorP = cannyColor.clone();
+
+        // Standard Hough Line Transform
+        Mat lines = new Mat();
+        Imgproc.HoughLines(cannyImg,
+                lines, 1, Math.PI/180, 80);
+        // runs the actual detection
+
+        // Draw the lines
+        for (int x = 0; x < lines.rows(); x++)
+        {
+            double rho = lines.get(x, 0)[0],
+                    theta = lines.get(x, 0)[1];
+            double a = Math.cos(theta), b = Math.sin(theta);
+            double x0 = a * rho, y0 = b * rho;
+
+            Point pt1 = new Point(Math.round(x0 + 1000*(-b)), Math.round(y0 + 1000*(a)));
+            Point pt2 = new Point(Math.round(x0 - 1000*(-b)), Math.round(y0 - 1000*(a)));
+            Imgproc.line(cannyColor, pt1, pt2, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+        // Probabilistic Line Transform
+        Mat linesP = new Mat(); // will hold the results of the detection
+        Imgproc.HoughLinesP(cannyImg, linesP, 1, Math.PI/180, 50, 50, 10); // runs the actual detection
+        // Draw the lines
+        for (int x = 0; x < linesP.rows(); x++)
+        {
+            double[] l = linesP.get(x, 0);
+            Imgproc.line(cannyColorP, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+
+
+
+
+        // Show the Stndard Hough Line transform
+        Bitmap imageMatched = Bitmap.createBitmap(cannyColor.cols(), cannyColor.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(cannyColor, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+        // Show the Probabilistic Hough Line transform
+        //Bitmap imageMatched = Bitmap.createBitmap(cannyColorP.cols(), cannyColorP.rows(), Bitmap.Config.RGB_565);
+        //Utils.matToBitmap(cannyColorP, imageMatched);
+        //imageView.setImageBitmap(imageMatched);
+
+
+
+
+
+    }
+
+
+
+
+
+
+    public void CompareHistograms(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageView = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        //yourTextView.setMovementMethod(new ScrollingMovementMethod());
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Mat mask = new Mat();
+        Mat img1 = new Mat();
+        Mat img1re = new Mat();
+        Mat hsvBase = new Mat(), hsvTest1 = new Mat(), hsvTest2 = new Mat();
+
+
+        // Load the images & convert it to HSV.
+        //Image 1
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1304_cutted, this.getTheme());
+        Bitmap one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+        Imgproc.cvtColor( img1re, hsvBase, Imgproc.COLOR_BGR2HSV );
+        img1re.release();
+
+
+        //Image 2
+        d = getResources().getDrawable(R.drawable.dsc_1305_cutted, this.getTheme());
+        one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+        Imgproc.cvtColor( img1re, hsvTest1, Imgproc.COLOR_BGR2HSV );
+        img1re.release();
+
+        //Image 3
+        d = getResources().getDrawable(R.drawable.dsc_1306_cutted, this.getTheme());
+        one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+        Imgproc.cvtColor( img1re, hsvTest2, Imgproc.COLOR_BGR2HSV );
+        img1re.release();
+
+        // finish to load.
+
+        /**
+         * here.
+         */
+
+        //Mat hsvHalfDown = hsvBase.submat( new Range( hsvBase.rows()/2, hsvBase.rows() - 1 ), new Range( 0, hsvBase.cols() - 1 ) );
+
+
+        int hBins = 50, sBins = 60;
+        int[] histSize = { hBins, sBins };
+        // hue varies from 0 to 179, saturation from 0 to 255
+        float[] ranges = { 0, 180, 0, 256 };
+        // Use the 0-th and 1-st channels
+        int[] channels = { 0, 1 };
+
+
+        Mat histBase = new Mat(), histHalfDown = new Mat(), histTest1 = new Mat(), histTest2 = new Mat();
+        // Calculate the histogram of the 'Base' Image.
+        List<Mat> hsvBaseList = Arrays.asList(hsvBase);
+        Imgproc.calcHist(hsvBaseList, new MatOfInt(channels), new Mat(), histBase, new MatOfInt(histSize), new MatOfFloat(ranges), false);
+        Core.normalize(histBase, histBase, 0, 1, Core.NORM_MINMAX);
+
+        // Calculate the histogram of the 'Half-Base' Image.
+        //List<Mat> hsvHalfDownList = Arrays.asList(hsvHalfDown);
+        //Imgproc.calcHist(hsvHalfDownList, new MatOfInt(channels), new Mat(), histHalfDown, new MatOfInt(histSize), new MatOfFloat(ranges), false);
+        //Core.normalize(histHalfDown, histHalfDown, 0, 1, Core.NORM_MINMAX);
+
+        // Calculate the histogram of the 'hsvTest1' Image.
+        List<Mat> hsvTest1List = Arrays.asList(hsvTest1);
+        Imgproc.calcHist(hsvTest1List, new MatOfInt(channels), new Mat(), histTest1, new MatOfInt(histSize), new MatOfFloat(ranges), false);
+        Core.normalize(histTest1, histTest1, 0, 1, Core.NORM_MINMAX);
+
+        // Calculate the histogram of the 'hsvTest2' Image.
+        List<Mat> hsvTest2List = Arrays.asList(hsvTest2);
+        Imgproc.calcHist(hsvTest2List, new MatOfInt(channels), new Mat(), histTest2, new MatOfInt(histSize), new MatOfFloat(ranges), false);
+        Core.normalize(histTest2, histTest2, 0, 1, Core.NORM_MINMAX);
+
+
+
+        StringBuilder results = new StringBuilder();
+
+        for( int compareMethod = 0; compareMethod < 4; compareMethod++ )
+        {
+            double baseBase =
+                    Imgproc.compareHist( histBase, histBase, compareMethod );
+
+            //double baseHalf = Imgproc.compareHist( histBase, histHalfDown, compareMethod );
+
+            double baseTest1 =
+                    Imgproc.compareHist( histBase, histTest1, compareMethod );
+
+            double baseTest2 =
+                    Imgproc.compareHist( histBase, histTest2, compareMethod );
+
+            results.append("Method " + compareMethod + " Perfect : " + baseBase +
+                    ", Base-Test(1) : " + baseTest1 + ", Base-Test(2) : "  + baseTest2 + "\n");
+
+
+
+            /*
+            System.out.println("Method " + compareMethod + " Perfect, Base-Half, Base-Test(1), Base-Test(2) : "
+             + baseBase + " / " + baseHalf + " / " + baseTest1 + " / " + baseTest2);
+             */
+
+        }
+
+
+        Log.v("RES:\n", "\n" + results.toString());
+        textViewMy.setText(results);
+    }
+
 
     // OnClick of Button Launch Compare
     public void calculateHistogrham(View view)
@@ -1487,7 +1705,7 @@ public class MainActivity extends AppCompatActivity
 
 
         //Image 1
-        Drawable d = getResources().getDrawable(R.drawable.miata, this.getTheme());
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1306_cutted, this.getTheme());
         Bitmap one = drawableToBitmap(d);
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
         Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
@@ -1498,6 +1716,7 @@ public class MainActivity extends AppCompatActivity
         float[] range = {0, 256};
         MatOfFloat histRange = new MatOfFloat(range);
 
+        // Calculate the histograms :
         boolean accumulate = false;
         Mat histB = new Mat(),histG = new Mat(), histR = new Mat();
         Imgproc.calcHist(bgrPlanes, new MatOfInt(0), new Mat(), histB, new MatOfInt(histSize), histRange, accumulate);
@@ -1523,13 +1742,26 @@ public class MainActivity extends AppCompatActivity
         histG.get(0, 0, gHistData);
         float[] rHistData = new float[(int) (histR.total() * histR.channels())];
         histR.get(0, 0, rHistData);
-        for( int i = 1; i < histSize; i++ ) {
-            Imgproc.line(histImage, new Point(binW * (i - 1), histH - Math.round(bHistData[i - 1])),
-                    new Point(binW * (i), histH - Math.round(bHistData[i])), new Scalar(255, 0, 0), 2);
-            Imgproc.line(histImage, new Point(binW * (i - 1), histH - Math.round(gHistData[i - 1])),
-                    new Point(binW * (i), histH - Math.round(gHistData[i])), new Scalar(0, 255, 0), 2);
-            Imgproc.line(histImage, new Point(binW * (i - 1), histH - Math.round(rHistData[i - 1])),
-                    new Point(binW * (i), histH - Math.round(rHistData[i])), new Scalar(0, 0, 255), 2);
+
+        for( int i = 1; i < histSize; i++ )
+        {
+            Imgproc.line(histImage,
+                    new Point(binW * (i - 1), histH - Math.round(bHistData[i - 1])),
+                    new Point(binW * (i), histH - Math.round(bHistData[i])),
+                    new Scalar(255, 0, 0),
+                    2);
+
+            Imgproc.line(histImage,
+                    new Point(binW * (i - 1), histH - Math.round(gHistData[i - 1])),
+                    new Point(binW * (i), histH - Math.round(gHistData[i])),
+                    new Scalar(0, 255, 0),
+                    2);
+
+            Imgproc.line(histImage,
+                    new Point(binW * (i - 1), histH - Math.round(rHistData[i - 1])),
+                    new Point(binW * (i), histH - Math.round(rHistData[i])),
+                    new Scalar(0, 0, 255),
+                    2);
         }
 
 

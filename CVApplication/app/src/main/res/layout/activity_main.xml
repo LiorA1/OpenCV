@@ -60,10 +60,11 @@
             android:orientation="horizontal">
 
             <Button
-                android:id="@+id/button2"
-                android:layout_width="wrap_content"
+                android:id="@+id/buttonHisto"
+                android:layout_width="97dp"
                 android:layout_height="wrap_content"
-                android:onClick="calculateHistogrham"
+                android:layout_weight="1"
+                android:onClick="CompareHistograms"
                 android:text="ButtonHisto" />
 
             <Button
@@ -71,6 +72,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_margin="0dp"
+                android:layout_weight="1"
                 android:onClick="compareKnn"
                 android:padding="8dp"
                 android:text="@string/buttonknn" />
@@ -79,11 +81,20 @@
                 android:id="@+id/buttonCompare"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:onClick="morphGradient"
+                android:layout_weight="1"
+                android:onClick="histogrhamEqual"
                 android:padding="0dp"
                 android:text="@string/buttonbf"
                 app:layout_constraintHorizontal_bias="1.0"
                 tools:layout_editor_absoluteY="16dp" />
+
+            <Button
+                android:id="@+id/buttonLines"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:onClick="HoughLinesRun"
+                android:text="HoughLines" />
 
         </LinearLayout>
 
