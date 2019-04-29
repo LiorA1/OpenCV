@@ -47,6 +47,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
+import static org.opencv.imgproc.Imgproc.circle;
+
 public class MainActivity extends AppCompatActivity
 {
 
@@ -1486,7 +1488,583 @@ public class MainActivity extends AppCompatActivity
     }//End of CompareKnn.
 
 
+    /**
+     * Compute the intersection points between two line. i.e l1,l2.
+     * @param l1
+     * @param l2
+     * @return
+     */
+    protected Point computeIntersection (Line l1, Line l2)
+    {
+        double x11 = l1._start.x, x22 = l1._end.x;
 
+
+
+        double x1 = l1._start.x,
+                x2 = l1._end.x,
+
+                y1 = l1._start.y,
+                y2 = l1._end.y;
+
+        double x3 = l2._start.x,
+                x4 = l2._end.x,
+
+                y3 = l2._start.y,
+                y4 = l2._end.y;
+
+
+        /**
+         * LAST STOP Here.
+         * This method will find intersection between two lines.
+         * In the future you will need to find some way to give the Systen only the
+         * Lines that you want to investigate.
+         */
+        double d = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+        //double angle = angleBetween2Lines(l1,l2);
+        //Log.e("houghline","angle between 2 lines = "+ angle);
+
+        Point pt = new Point(); // Intersection Point.
+        pt.x = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / d;
+        pt.y = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / d;
+
+
+        return pt;
+    }
+
+
+    /**
+     * draw intersection points using Reg. HoughLineDetection.
+     * @param view
+     */
+    public void intersectionPointsRegHoughLinesRun(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageView = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        //yourTextView.setMovementMethod(new ScrollingMovementMethod());
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Mat mask = new Mat();
+        Mat img1 = new Mat();
+        Mat img1re = new Mat();
+
+
+        // Load the images
+        //Image 1
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme());
+        Bitmap one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+
+        // Edge Detction :
+        Mat cannyImg = new Mat();
+        Imgproc.Canny(img1re, cannyImg, 50, 200, 3, false);
+        img1re.release();
+
+        // Copy Edges, to the image that will display the results in BGR format.
+        Mat cannyColor = new Mat();
+        Imgproc.cvtColor(cannyImg, cannyColor, Imgproc.COLOR_GRAY2BGR);
+        Mat cannyColorP = cannyColor.clone();
+
+        // Standard Hough Line Transform
+        Mat linesMat = new Mat();
+        Imgproc.HoughLines(cannyImg, linesMat, 1, Math.PI/180, 75);
+        // runs the actual detection
+
+        // Draw the lines
+        for (int x = 0; x < linesMat.rows(); x++)
+        {
+            double rho = linesMat.get(x, 0)[0],
+                    theta = linesMat.get(x, 0)[1];
+            double a = Math.cos(theta), b = Math.sin(theta);
+            double x0 = a * rho, y0 = b * rho;
+
+            Point pt1 = new Point(Math.round(x0 + 1000*(-b)), Math.round(y0 + 1000*(a)));
+            Point pt2 = new Point(Math.round(x0 - 1000*(-b)), Math.round(y0 - 1000*(a)));
+            Imgproc.line(cannyColor, pt1, pt2, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+
+
+
+
+        //////------------------------------Start adding here
+        // https://stackoverflow.com/questions/44825180/rectangle-document-detection-using-hough-transform-opencv-android
+        List<Line> horizontals = new ArrayList<>();
+        List<Line> verticals = new ArrayList<>();
+
+        for (int x = 0; x < linesMat.rows(); x++)
+        {
+            double[] vec = linesMat.get(x, 0);
+
+            double x1 = vec[0], y1 = vec[1], /*TODO: failure! 'ArrayIndexOutOfBoundsException'*/
+                    x2 = vec[2], y2 = vec[3];
+
+
+            Point start = new Point(x1, y1);
+            Point end = new Point(x2, y2);
+
+
+            Line line = new Line(start, end);
+
+            if (Math.abs(x1 - x2) > Math.abs(y1 - y2))
+            {
+                // If the ??
+                horizontals.add(line); // Add to the horizontals lines list.
+            }
+            else if (Math.abs(x2 - x1) < Math.abs(y2 - y1))
+            {
+                verticals.add(line); // Add to the verticals lines list.
+            }
+        }
+
+        // Lior : Now I have the horizontals lines in horizontals list.
+        //          And the verticals lines in a verticals list.
+
+        // Lior : Now Find Intersection
+        // computeIntersection - calculate the intersection of two lines.
+        // for each two lines - find intersection.
+
+        List<Point> intersections = new ArrayList<>();
+        for (Line horLine : horizontals)
+        {
+            for (Line verLine: verticals)
+            {
+                // calculate the intersection.
+                // Store it in an array of points.
+                intersections.add(computeIntersection(horLine, verLine));
+
+            }
+
+        }
+
+        MatOfPoint2f approxCurve = new MatOfPoint2f();
+
+        org.opencv.core.Point pointsArray[] = new org.opencv.core.Point[ intersections.size() ];
+        intersections.toArray(pointsArray);
+        MatOfPoint2f intersectionMat = new MatOfPoint2f(pointsArray);
+
+        //Processing on mMOP2f1 which is in type MatOfPoint2f
+        double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
+        Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
+
+
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(intersectionMat.cols(), intersectionMat.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(intersectionMat, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+
+
+
+        // Show the Stndard Hough Line transform
+        ///Bitmap imageMatched = Bitmap.createBitmap(cannyColor.cols(), cannyColor.rows(), Bitmap.Config.RGB_565);
+        ///Utils.matToBitmap(cannyColor, imageMatched);
+        ///imageView.setImageBitmap(imageMatched);
+
+
+
+
+
+
+    }
+
+    public void intersectionPointsProbalsicHoughLinesRun(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageView = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        //yourTextView.setMovementMethod(new ScrollingMovementMethod());
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Mat mask = new Mat();
+        Mat img1 = new Mat();
+        Mat img1re = new Mat();
+
+
+        // Load the images
+        //Image 1
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1247, this.getTheme());
+        Bitmap one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+
+        // Edge Detction :
+        Mat cannyImg = new Mat();
+        Imgproc.Canny(img1re, cannyImg, 70, 200, 3, false);
+        //img1re.release();
+
+        // Copy Edges, to the image that will display the results in BGR format.
+        Mat cannyColor = new Mat();
+        Imgproc.cvtColor(cannyImg, cannyColor, Imgproc.COLOR_GRAY2BGR);
+        Mat cannyColorP = cannyColor.clone();
+
+
+
+        // Probabilistic Line Transform -
+        Mat linesPMat = new Mat(); // will hold the results of the detection
+        Imgproc.HoughLinesP(cannyImg, linesPMat, 1, Math.PI/180,
+                70, 105, 10); // runs the actual detection
+
+
+
+
+        // Draw the lines in the original mat.
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] l = linesPMat.get(x, 0);
+            Imgproc.line(cannyColorP,
+                    new Point(l[0], l[1]),
+                    new Point(l[2], l[3]),
+                    new Scalar(0, 0, 255),
+                    3,
+                    Imgproc.LINE_AA,
+                    0);
+        }
+        //
+
+
+
+
+
+
+        //////------------------------------Start adding here
+        // https://stackoverflow.com/questions/44825180/rectangle-document-detection-using-hough-transform-opencv-android
+
+        List<Line> horizontals = new ArrayList<>();
+        List<Line> verticals = new ArrayList<>();
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] vec = linesPMat.get(x, 0);
+
+            double x1 = vec[0], y1 = vec[1], //TODO: failure! 'ArrayIndexOutOfBoundsException' - was now it working.
+                    x2 = vec[2], y2 = vec[3];
+
+
+            Point start = new Point(x1, y1);
+            Point end = new Point(x2, y2);
+
+
+            Line line = new Line(start, end);
+
+            if (Math.abs(x1 - x2) > Math.abs(y1 - y2))
+            {
+                // If the ??
+                horizontals.add(line); // Add to the horizontals lines list.
+            }
+            else if (Math.abs(x2 - x1) < Math.abs(y2 - y1))
+            {
+                verticals.add(line); // Add to the verticals lines list.
+            }
+        }
+
+
+
+        // Lior : Now I have the horizontals lines in horizontals list.
+        //          And the verticals lines in a verticals list.
+
+        // Lior : Now Find Intersection
+        // computeIntersection - calculate the intersection of two lines.
+        // for each two lines - find intersection.
+
+        List<Point> intersections1 = new ArrayList<>();
+        for (Line horLine : horizontals)
+        {
+            for (Line verLine: verticals)
+            {
+                // calculate the intersection.
+                // Store it in an array of points.
+                intersections1.add(computeIntersection(horLine, verLine));
+
+            }
+
+        }
+
+        MatOfPoint2f approxCurve = new MatOfPoint2f();
+
+        org.opencv.core.Point pointsArray[] = new org.opencv.core.Point[ intersections1.size() ];
+        intersections1.toArray(pointsArray);
+        MatOfPoint2f intersectionMat = new MatOfPoint2f(pointsArray);
+
+        //Processing on mMOP2f1 which is in type MatOfPoint2f
+        double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
+        Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
+
+
+
+        // TODO: draw all the intersections. (see it ok)
+
+
+        for (Point point: pointsArray)
+        {
+            circle(cannyColorP, point, 2, new Scalar(255, 0, 0), 3);
+        }
+
+        Bitmap imageMatched = Bitmap.createBitmap(cannyColorP.cols(), cannyColorP.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(cannyColorP, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+
+        // TODO: find the biggest rectangle.
+
+
+        // TODO: I have some problems:
+        //  1. In the simple picutre(without alot of noise i get a good results.
+        //  But In the complicated picture I get bad results. probably because all the noise.
+        //  SOULTION : try to blur / try to work with adaptive threshold.
+        //  2. After solved this issue I will have to work with wrapPrespective.
+        //  3. And AFTER THAT I will have to work with histograms and p_Hash.
+        //
+        //  l
+        //  2.
+        // 1.
+
+
+
+
+
+
+
+
+
+        /*
+        Mat untouched = img1re.clone();
+        ArrayList<Point> intersections = new ArrayList<Point>();
+        for (int i = 0; i < linesPMat.cols(); i++)
+        {
+            for (int j = i + 1; j < linesPMat.cols(); j++)
+            {
+                Point pt = computeIntersect(linesPMat.get(0,i), linesPMat.get(0,j));
+                if (pt.x >= 0 && pt.y >= 0)
+                    intersections.add(pt);
+            }
+        }
+
+        Log.v("Points corner size: ", "Size : " + intersections.size());
+
+        if( intersections.size() < 4 )
+        {
+            Log.v("Points corner size: ", " more than 4 corners " );
+            Log.v("Points corner size: ", "Size : " + intersections.size());
+            return;
+        }
+
+        Point center = new Point(0,0);
+        // Get mass center
+        for (int i = 0; i < intersections.size(); i++)
+        {
+            center.x += intersections.get(i).x;
+            center.y += intersections.get(i).y;
+        }
+        center.x = (center.x / intersections.size());
+        center.y = (center.y / intersections.size());
+
+        circle(untouched, center, 20, new Scalar(255, 0, 0), 5); //p1 is colored red
+
+        circle(untouched, intersections.get(0), 20, new Scalar(255, 0, 0), 5);
+        circle(untouched, intersections.get(1), 20, new Scalar(255, 0, 0), 5);
+        circle(untouched, intersections.get(2), 20, new Scalar(255, 0, 0), 5);
+        circle(untouched, intersections.get(3), 20, new Scalar(255, 0, 0), 5);
+
+        //Highgui.imwrite(outFile, untouched);
+        //return outFile;
+
+
+        //*/
+
+
+
+
+
+
+        // Show the Probabilistic Hough Line transform
+        /////Bitmap imageMatchedf = Bitmap.createBitmap(cannyColorP.cols(), cannyColorP.rows(), Bitmap.Config.RGB_565);
+        /////Utils.matToBitmap(cannyColorP, imageMatched);
+        /////imageView.setImageBitmap(imageMatched);
+
+
+
+
+
+    }
+
+    private Point computeIntersect(double[] a, double[] b)
+    {
+        double x1 = a[0], y1 = a[1], x2 = a[2], y2 = a[3], x3 = b[0], y3 = b[1], x4 = b[2], y4 = b[3];
+        double denom = ((x1 - x2) * (y3 - y4)) - ((y1 - y2) * (x3 - x4));
+        Point pt = new Point();
+
+        if (denom != 0)
+        {
+
+            pt.x = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom;
+            pt.y = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom;
+            return pt;
+        }
+        else
+        {
+            return new Point(-1, -1);
+        }
+
+    }
+
+
+    /**
+     * Reg. HoughLineDetection
+     * @param view
+     */
+    public void regHoughLinesRun(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageView = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        //yourTextView.setMovementMethod(new ScrollingMovementMethod());
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Mat mask = new Mat();
+        Mat img1 = new Mat();
+        Mat img1re = new Mat();
+
+
+        // Load the images
+        //Image 1
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme());
+        Bitmap one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+
+        // Edge Detction :
+        Mat cannyImg = new Mat();
+        Imgproc.Canny(img1re, cannyImg, 50, 200, 3, false);
+        img1re.release();
+
+        // Copy Edges, to the image that will display the results in BGR format.
+        Mat cannyColor = new Mat();
+        Imgproc.cvtColor(cannyImg, cannyColor, Imgproc.COLOR_GRAY2BGR);
+        Mat cannyColorP = cannyColor.clone();
+
+        // Standard Hough Line Transform
+        Mat linesMat = new Mat();
+        Imgproc.HoughLines(cannyImg, linesMat, 1, Math.PI/180, 75);
+        // runs the actual detection
+
+        // Draw the lines
+        for (int x = 0; x < linesMat.rows(); x++)
+        {
+            double rho = linesMat.get(x, 0)[0],
+                    theta = linesMat.get(x, 0)[1];
+            double a = Math.cos(theta), b = Math.sin(theta);
+            double x0 = a * rho, y0 = b * rho;
+
+            Point pt1 = new Point(Math.round(x0 + 1000*(-b)), Math.round(y0 + 1000*(a)));
+            Point pt2 = new Point(Math.round(x0 - 1000*(-b)), Math.round(y0 - 1000*(a)));
+            Imgproc.line(cannyColor, pt1, pt2, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+
+
+
+        // Show the Stndard Hough Line transform
+        Bitmap imageMatched = Bitmap.createBitmap(cannyColor.cols(), cannyColor.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(cannyColor, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+        // Show the Probabilistic Hough Line transform
+        //Bitmap imageMatched = Bitmap.createBitmap(cannyColorP.cols(), cannyColorP.rows(), Bitmap.Config.RGB_565);
+        //Utils.matToBitmap(cannyColorP, imageMatched);
+        //imageView.setImageBitmap(imageMatched);
+
+
+
+
+    }
+
+    public void probalsicHoughLinesRun(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageView = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        //yourTextView.setMovementMethod(new ScrollingMovementMethod());
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Mat mask = new Mat();
+        Mat img1 = new Mat();
+        Mat img1re = new Mat();
+
+
+        // Load the images
+        //Image 1
+        Drawable d = getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme());
+        Bitmap one = drawableToBitmap(d);
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        Imgproc.resize(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+
+        // Edge Detction :
+        Mat cannyImg = new Mat();
+        Imgproc.Canny(img1re, cannyImg, 50, 200, 3, false);
+        img1re.release();
+
+        // Copy Edges, to the image that will display the results in BGR format.
+        Mat cannyColor = new Mat();
+        Imgproc.cvtColor(cannyImg, cannyColor, Imgproc.COLOR_GRAY2BGR);
+        Mat cannyColorP = cannyColor.clone();
+
+        // Standard Hough Line Transform
+        ////Mat linesMat = new Mat();
+        ////Imgproc.HoughLines(cannyImg, linesMat, 1, Math.PI/180, 80);
+        // runs the actual detection
+
+
+
+        // Probabilistic Line Transform
+        Mat linesPMat = new Mat(); // will hold the results of the detection
+        Imgproc.HoughLinesP(cannyImg, linesPMat, 1, Math.PI/180,
+                50, 50, 10); // runs the actual detection
+
+
+
+        // Draw the lines
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] l = linesPMat.get(x, 0);
+            Imgproc.line(cannyColorP, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+
+
+
+
+
+
+        // Show the Probabilistic Hough Line transform
+        Bitmap imageMatched = Bitmap.createBitmap(cannyColorP.cols(), cannyColorP.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(cannyColorP, imageMatched);
+        imageView.setImageBitmap(imageMatched);
+
+
+
+
+
+    }
+
+
+    @Deprecated
+    /**
+     * "Deprecated Deprecated Deprecated"
+     * This was a first try function of 'regHoughLinesRun' and 'probalsicHoughLinesRun'.
+     * See the newer functions, with the following names for more accurate & cleaner information.
+     * @param view
+     */
     public void HoughLinesRun(View view)
     {
         Log.v("message","Start of function call");
@@ -1520,16 +2098,16 @@ public class MainActivity extends AppCompatActivity
         Mat cannyColorP = cannyColor.clone();
 
         // Standard Hough Line Transform
-        Mat lines = new Mat();
+        Mat linesMat = new Mat();
         Imgproc.HoughLines(cannyImg,
-                lines, 1, Math.PI/180, 80);
+                linesMat, 1, Math.PI/180, 80);
         // runs the actual detection
 
         // Draw the lines
-        for (int x = 0; x < lines.rows(); x++)
+        for (int x = 0; x < linesMat.rows(); x++)
         {
-            double rho = lines.get(x, 0)[0],
-                    theta = lines.get(x, 0)[1];
+            double rho = linesMat.get(x, 0)[0],
+                    theta = linesMat.get(x, 0)[1];
             double a = Math.cos(theta), b = Math.sin(theta);
             double x0 = a * rho, y0 = b * rho;
 
@@ -1539,12 +2117,91 @@ public class MainActivity extends AppCompatActivity
         }
 
         // Probabilistic Line Transform
-        Mat linesP = new Mat(); // will hold the results of the detection
-        Imgproc.HoughLinesP(cannyImg, linesP, 1, Math.PI/180, 50, 50, 10); // runs the actual detection
-        // Draw the lines
-        for (int x = 0; x < linesP.rows(); x++)
+        Mat linesPMat = new Mat(); // will hold the results of the detection
+        Imgproc.HoughLinesP(cannyImg, linesPMat, 1, Math.PI/180,
+                50, 50, 10); // runs the actual detection
+
+
+        //////------------------------------Start adding here
+        // https://stackoverflow.com/questions/44825180/rectangle-document-detection-using-hough-transform-opencv-android
+        List<Line> horizontals = new ArrayList<>();
+        List<Line> verticals = new ArrayList<>();
+
+        for (int x = 0; x < linesPMat.rows(); x++)
         {
-            double[] l = linesP.get(x, 0);
+            double[] vec = linesPMat.get(x, 0);
+
+            double x1 = vec[0], y1 = vec[1],
+                    x2 = vec[2], y2 = vec[3];
+
+
+            Point start = new Point(x1, y1);
+            Point end = new Point(x2, y2);
+
+
+            Line line = new Line(start, end);
+
+            if (Math.abs(x1 - x2) > Math.abs(y1 - y2))
+            {
+                // If the ??
+                horizontals.add(line); // Add to the horizontals lines list.
+            }
+            else if (Math.abs(x2 - x1) < Math.abs(y2 - y1))
+            {
+                verticals.add(line); // Add to the verticals lines list.
+            }
+        }
+
+        // Lior : Now I have the horizontals lines in horizontals list.
+        //          And the verticals lines in a verticals list.
+
+        // Lior : Now Find Intersection
+        // computeIntersection - calculate the intersection of two lines.
+        // for each two lines - find intersection.
+
+        List<Point> intersections = new ArrayList<>();
+        for (Line horLine : horizontals)
+        {
+            for (Line verLine: verticals)
+            {
+                // calculate the intersection.
+                // Store it in an array of points.
+                intersections.add(computeIntersection(horLine, verLine));
+
+            }
+
+        }
+
+        MatOfPoint2f approxCurve = new MatOfPoint2f();
+
+        org.opencv.core.Point pointsArray[] = new org.opencv.core.Point[ intersections.size() ];
+        intersections.toArray(pointsArray);
+        MatOfPoint2f intersectionMat = new MatOfPoint2f(pointsArray);
+
+        //Processing on mMOP2f1 which is in type MatOfPoint2f
+        double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
+        Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // Draw the lines
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] l = linesPMat.get(x, 0);
             Imgproc.line(cannyColorP, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
         }
 
