@@ -363,6 +363,8 @@ public class MainActivity extends AppCompatActivity
 
 
     /**
+     * Another last point of work: Here I started to mix resize, blur, gray, canny and HoughLineP !.
+     * THE NEXT ONE NEED TO BE INTERSECTION COMPUTE AND THE FIND THE BIGGEST RECTANGLE IN THE IMAGE.
      * shapeDet - Detect a SHAPE.
      * Preferable : Rectangle .
      * @param view
@@ -376,7 +378,7 @@ public class MainActivity extends AppCompatActivity
 
 
         int elementType = Imgproc.CV_SHAPE_RECT;
-        int MAX_KERNEL_LENGTH = 15;
+        int MAX_KERNEL_LENGTH = 11;
         final int MAX_THRESHOLD = 255;
         final int ROUNDS_OF_BLUR = 2;
         int threshold = 100;
@@ -396,13 +398,13 @@ public class MainActivity extends AppCompatActivity
         //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
         // Resize down :
         Mat pyrDown = new Mat();
-        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 4, img1.rows() / 4));
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
         img1.release();
 
         // convert the image to gray scale.
         Mat pyrDownGray = new Mat();
         Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
-        pyrDown.release();
+        //pyrDown.release();
 
 
         // Blur the image.
@@ -413,18 +415,46 @@ public class MainActivity extends AppCompatActivity
         // Blur the image.
         for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
         {
-            //Imgproc.medianBlur(pyrDownGray, pyrDownGray, i);
+            Imgproc.medianBlur(pyrDownGray, pyrDownGray, i);
 
-            Imgproc.GaussianBlur(pyrDownGray,
-                            pyrDownGray,
-                            new Size(i,i), 1, 1);
+            //Imgproc.GaussianBlur(pyrDownGray, pyrDownGray, new Size(i,i), 1, 1);
             //
         }
 
+        // operate Canny filter :
+        // https://docs.opencv.org/3.4.5/da/d5c/tutorial_canny_detector.html
+        Mat pyrDownGrayCanny = new Mat();
+        Imgproc.Canny(pyrDownGray, pyrDownGrayCanny, 10, 100);
+        pyrDownGray.release();
 
-        Bitmap imageMatched = Bitmap.createBitmap(pyrDownGray.cols(), pyrDownGray.rows(), Bitmap.Config.RGB_565);
-        Utils.matToBitmap(pyrDownGray, imageMatched);
+
+        // Probabilistic Line Transform
+        Mat linesPMat = new Mat(); // will hold the results of the detection
+        Imgproc.HoughLinesP(pyrDownGrayCanny, linesPMat, 1, Math.PI/180,
+                50, 50, 10); // runs the actual detection
+
+
+
+        // Draw the lines
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] l = linesPMat.get(x, 0);
+            Imgproc.line(pyrDown, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+            //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+
+
+
+
+
+
+        // Show the Probabilistic Hough Line transform
+        Bitmap imageMatched = Bitmap.createBitmap(pyrDown.cols(), pyrDown.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(pyrDown, imageMatched);
         imageViewMy.setImageBitmap(imageMatched);
+
+
         /*
         // Dilate the image :
         // https://docs.opencv.org/3.4.5/db/df6/tutorial_erosion_dilatation.html
@@ -1673,6 +1703,10 @@ public class MainActivity extends AppCompatActivity
 
     }
 
+    /**
+     * Last point of WORK.
+     * @param view
+     */
     public void intersectionPointsProbalsicHoughLinesRun(View view)
     {
         Log.v("message","Start of function call");
@@ -1814,6 +1848,24 @@ public class MainActivity extends AppCompatActivity
         // TODO: find the biggest rectangle.
 
 
+        // it doesnt work well with only this code.
+        // maybe if you will use some blur, like with the contours example ?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        // PROBLEMS:
         // TODO: I have some problems:
         //  1. In the simple picutre(without alot of noise i get a good results.
         //  But In the complicated picture I get bad results. probably because all the noise.
@@ -1821,9 +1873,7 @@ public class MainActivity extends AppCompatActivity
         //  2. After solved this issue I will have to work with wrapPrespective.
         //  3. And AFTER THAT I will have to work with histograms and p_Hash.
         //
-        //  l
-        //  2.
-        // 1.
+
 
 
 
