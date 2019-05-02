@@ -430,8 +430,105 @@ public class MainActivity extends AppCompatActivity
 
         // Probabilistic Line Transform
         Mat linesPMat = new Mat(); // will hold the results of the detection
-        Imgproc.HoughLinesP(pyrDownGrayCanny, linesPMat, 1, Math.PI/180,
+        Imgproc.HoughLinesP(pyrDownGrayCanny, linesPMat, 1, (4 * Math.PI)/180,
                 50, 50, 10); // runs the actual detection
+
+
+
+        // Divide to Ver & Hor -
+        //////------------------------------Start adding here
+        // https://stackoverflow.com/questions/44825180/rectangle-document-detection-using-hough-transform-opencv-android
+
+        List<Line> horizontals = new ArrayList<>();
+        List<Line> verticals = new ArrayList<>();
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] vec = linesPMat.get(x, 0);
+
+            double x1 = vec[0], y1 = vec[1], //TODO: failure! 'ArrayIndexOutOfBoundsException' - was now it working.
+                    x2 = vec[2], y2 = vec[3];
+
+
+            Point start = new Point(x1, y1);
+            Point end = new Point(x2, y2);
+
+
+            Line line = new Line(start, end);
+
+            if (Math.abs(x1 - x2) > Math.abs(y1 - y2))
+            {
+                // If the ??
+                horizontals.add(line); // Add to the horizontals lines list.
+            }
+            else if (Math.abs(x2 - x1) < Math.abs(y2 - y1))
+            {
+                verticals.add(line); // Add to the verticals lines list.
+            }
+        }
+
+
+
+        // Lior : Now I have the horizontals lines in horizontals list.
+        //          And the verticals lines in a verticals list.
+
+        // Lior : Now Find Intersection
+        // computeIntersection - calculate the intersection of two lines.
+        // for each two lines - find intersection.
+
+        List<Point> intersections1 = new ArrayList<>();
+        for (Line horLine : horizontals)
+        {
+            for (Line verLine: verticals)
+            {
+                // calculate the intersection.
+                // Store it in an array of points.
+                intersections1.add(computeIntersection(horLine, verLine));
+
+            }
+
+        }
+
+
+        // Now delete the line with no another line with such angle.
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Divide the image to 4 "buckets"
+        // And in each take the most far from the center of the image.
+
+        int linesRows = linesPMat.rows();
+        int linesCols = linesPMat.cols();
+
+        int imgRows = pyrDownGrayCanny.rows();
+        int imgCols = pyrDownGrayCanny.cols();
+
+        Point topLeft, topRight, bottomLeft, bottomRight;
+        int middleHor = pyrDownGrayCanny.rows() / 2;
+        int middleVer = pyrDownGrayCanny.cols() / 2;
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+
+
+        MatOfPoint2f approxCurve = new MatOfPoint2f();
+
+        org.opencv.core.Point pointsArray[] = new org.opencv.core.Point[ intersections1.size() ];
+        intersections1.toArray(pointsArray);
+        MatOfPoint2f intersectionMat = new MatOfPoint2f(pointsArray);
+
+        //Processing on mMOP2f1 which is in type MatOfPoint2f
+        double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
+        Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
+
+
+
+        // TODO: draw all the intersections. (see it ok)
+
+
+        for (Point point: pointsArray)
+        {
+            circle(pyrDown, point, 2, new Scalar(255, 0, 0), 3);
+        }
 
 
 
@@ -442,10 +539,6 @@ public class MainActivity extends AppCompatActivity
             Imgproc.line(pyrDown, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
             //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
         }
-
-
-
-
 
 
 
