@@ -4,7 +4,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
@@ -12,7 +11,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
@@ -29,25 +27,28 @@ import org.opencv.core.MatOfKeyPoint;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
-import org.opencv.core.Range;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.features2d.BFMatcher;
 import org.opencv.features2d.DescriptorMatcher;
 import org.opencv.features2d.Features2d;
 import org.opencv.features2d.ORB;
-import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.CLAHE;
 import org.opencv.imgproc.Imgproc;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
+import static org.opencv.core.Core.BORDER_DEFAULT;
+import static org.opencv.core.Core.merge;
+import static org.opencv.core.Core.split;
+import static org.opencv.core.CvType.CV_16S;
 import static org.opencv.imgproc.Imgproc.circle;
+import static org.opencv.imgproc.Imgproc.cvtColor;
+import static org.opencv.imgproc.Imgproc.equalizeHist;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -363,6 +364,266 @@ public class MainActivity extends AppCompatActivity
 
 
     /**
+     *  @param i_ArrayListToChange
+     * @param i_MaxDiff
+     */
+    public void removeUnParallelLines(List<Line> i_ArrayListToChange, double i_MaxDiff)
+    {
+        // List<Line> verticals = new ArrayList<>();
+        Line arrayOfLines[] = new Line[i_ArrayListToChange.size()];
+        i_ArrayListToChange.toArray(arrayOfLines);
+
+        i_ArrayListToChange.clear();
+
+        for(int curr = 0; curr < arrayOfLines.length - 1 ; curr++)
+        {
+            int sent = curr + 1;
+            if(curr == arrayOfLines.length - 2)
+            {
+                // final cell:
+                if(Math.abs(arrayOfLines[curr].getSlope() - arrayOfLines[sent].getSlope()) > i_MaxDiff)
+                {
+                    // Don't enter the last item to the new array. (Enter the curr).
+                }
+                else
+                {
+                    // Enter the two items to the array.
+                    i_ArrayListToChange.add(arrayOfLines[curr]);
+                    i_ArrayListToChange.add(arrayOfLines[sent]);
+                }
+            }
+            else
+            {
+                // not the final cell.
+                if(Math.abs(arrayOfLines[curr].getSlope() - arrayOfLines[sent].getSlope()) > i_MaxDiff)
+                {
+                    // Don't enter the curr item to the new array.
+                }
+                else
+                {
+                    // Enter the curr item to the array.
+                    i_ArrayListToChange.add(arrayOfLines[curr]);
+                }
+            }
+
+        }
+
+        Log.d("removeUnParallelLines :", " End Of Function");
+
+    }
+
+
+    public void hsvEqualize(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+
+        int elementType = Imgproc.CV_SHAPE_RECT;
+        int MAX_KERNEL_LENGTH = 13;
+        final int MAX_THRESHOLD = 255;
+        final int ROUNDS_OF_BLUR = 2;
+        int threshold = 100;
+
+
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1290_resize75, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        System.gc();
+
+        // Pyramid down :
+        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+        // convert the image to gray scale.
+        Mat pyrDownHsv = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownHsv, Imgproc.COLOR_BGR2YUV);
+        //pyrDown.release();
+
+        // Split the channels
+        List<Mat> matVector = new ArrayList<>();
+        split(pyrDownHsv, matVector);
+
+        // equalize the channel of intensity
+        equalizeHist(matVector.get(0), matVector.get(0));
+        equalizeHist(matVector.get(0), matVector.get(0));
+        //equalizeHist(matVector.get(1), matVector.get(1));
+        //equalizeHist(matVector.get(2), matVector.get(2));
+
+        // Merge the channels to an image.
+        merge(matVector, pyrDownHsv);
+
+        // Change back to BGR color space.
+        cvtColor(pyrDownHsv, pyrDownHsv, Imgproc.COLOR_YUV2BGR);
+
+
+        // set the results image in the imageView.
+        Bitmap imageMatched = Bitmap.createBitmap(pyrDownHsv.cols(), pyrDownHsv.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(pyrDownHsv, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+    }
+
+
+    /**
+     * This Function apply the sobel Edge detection on a given image.
+     * @param view
+     */
+    public void sobelCompute(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+
+        int elementType = Imgproc.CV_SHAPE_RECT;
+        int MAX_KERNEL_LENGTH = 13;
+        final int MAX_THRESHOLD = 255;
+        final int ROUNDS_OF_BLUR = 2;
+        int threshold = 100;
+
+
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1290_resize75, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        System.gc();
+
+        // Pyramid down :
+        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+        // Blur the image.
+        for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
+        {
+            Imgproc.medianBlur(pyrDown, pyrDown, i);
+
+            //Imgproc.GaussianBlur(pyrDownGray, pyrDownGray, new Size(i,i), 1, 1);
+            //
+        }
+
+
+        // convert the image to gray scale.
+        Mat pyrDownGray = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        //pyrDown.release();
+
+        int scale = 1;
+        int delta = 0;
+        int ddepth = CV_16S;
+        Mat grad_x = new Mat(), grad_y = new Mat();
+        Mat abs_grad_x = new Mat(), abs_grad_y = new Mat();
+
+        Imgproc.Sobel(pyrDownGray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
+        Imgproc.Sobel(pyrDownGray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
+
+
+        Core.convertScaleAbs(grad_x, abs_grad_x);
+        Core.convertScaleAbs(grad_y, abs_grad_y);
+
+
+        Mat grad = new Mat();
+        Core.addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
+
+        Bitmap imageMatched = Bitmap.createBitmap(grad.cols(), grad.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(grad, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+    }
+
+
+    /**
+     * This Function apply the Laplace Edge detection on a given Image.
+     * @param view
+     */
+    public void laplaceCompute(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+
+        int elementType = Imgproc.CV_SHAPE_RECT;
+        int MAX_KERNEL_LENGTH = 13;
+        final int MAX_THRESHOLD = 255;
+        final int ROUNDS_OF_BLUR = 2;
+        int threshold = 100;
+
+
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1290_resize75, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        System.gc();
+
+        // Pyramid down :
+        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+        // Blur the image.
+        for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
+        {
+            Imgproc.medianBlur(pyrDown, pyrDown, i);
+
+            //Imgproc.GaussianBlur(pyrDownGray, pyrDownGray, new Size(i,i), 1, 1);
+            //
+        }
+
+
+        // convert the image to gray scale.
+        Mat pyrDownGray = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        //pyrDown.release();
+
+
+
+        int kernel_size = 3;
+        int scale = 1;
+        int delta = 0;
+        int ddepth = CvType.CV_16S;
+        Mat dst = new Mat();
+
+        Imgproc.Laplacian( pyrDownGray, dst, ddepth, kernel_size, scale, delta, Core.BORDER_DEFAULT );
+
+        // converting back to CV_8U
+        Mat abs_dst = new Mat();
+        Core.convertScaleAbs( dst, abs_dst );
+
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(abs_dst.cols(), abs_dst.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(abs_dst, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+    }
+
+    /**
      * Another last point of work: Here I started to mix resize, blur, gray, canny and HoughLineP !.
      * THE NEXT ONE NEED TO BE INTERSECTION COMPUTE AND THE FIND THE BIGGEST RECTANGLE IN THE IMAGE.
      * shapeDet - Detect a SHAPE.
@@ -378,7 +639,7 @@ public class MainActivity extends AppCompatActivity
 
 
         int elementType = Imgproc.CV_SHAPE_RECT;
-        int MAX_KERNEL_LENGTH = 11;
+        int MAX_KERNEL_LENGTH = 13;
         final int MAX_THRESHOLD = 255;
         final int ROUNDS_OF_BLUR = 2;
         int threshold = 100;
@@ -387,7 +648,7 @@ public class MainActivity extends AppCompatActivity
 
         //Image Input :
         Bitmap one =
-                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme()));
         Mat img1 = new Mat();
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
         System.gc();
@@ -407,10 +668,6 @@ public class MainActivity extends AppCompatActivity
         //pyrDown.release();
 
 
-        // Blur the image.
-        //Imgproc.GaussianBlur(pyrDownGray,
-        //        pyrDownGray,
-        //        new Size(5,5), 1, 1);
 
         // Blur the image.
         for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
@@ -424,40 +681,39 @@ public class MainActivity extends AppCompatActivity
         // operate Canny filter :
         // https://docs.opencv.org/3.4.5/da/d5c/tutorial_canny_detector.html
         Mat pyrDownGrayCanny = new Mat();
-        Imgproc.Canny(pyrDownGray, pyrDownGrayCanny, 10, 100);
-        pyrDownGray.release();
+        Imgproc.Canny(pyrDownGray, pyrDownGrayCanny, 30, 100);
+        //pyrDownGray.release();
 
 
         // Probabilistic Line Transform
         Mat linesPMat = new Mat(); // will hold the results of the detection
-        Imgproc.HoughLinesP(pyrDownGrayCanny, linesPMat, 1, (4 * Math.PI)/180,
-                50, 50, 10); // runs the actual detection
+        Imgproc.HoughLinesP(pyrDownGrayCanny, linesPMat, 1, (2 * Math.PI)/180,
+                30, 50, 10); // runs the actual detection
 
 
 
-        // Divide to Ver & Hor -
+
         //////------------------------------Start adding here
         // https://stackoverflow.com/questions/44825180/rectangle-document-detection-using-hough-transform-opencv-android
 
+
+        // Divide to Ver & Hor -
+        // TODO: move this code to another function named 'divideOrie' or something..
         List<Line> horizontals = new ArrayList<>();
         List<Line> verticals = new ArrayList<>();
         for (int x = 0; x < linesPMat.rows(); x++)
         {
             double[] vec = linesPMat.get(x, 0);
-
-            double x1 = vec[0], y1 = vec[1], //TODO: failure! 'ArrayIndexOutOfBoundsException' - was now it working.
+            double x1 = vec[0], y1 = vec[1],
                     x2 = vec[2], y2 = vec[3];
 
 
             Point start = new Point(x1, y1);
             Point end = new Point(x2, y2);
-
-
             Line line = new Line(start, end);
 
             if (Math.abs(x1 - x2) > Math.abs(y1 - y2))
             {
-                // If the ??
                 horizontals.add(line); // Add to the horizontals lines list.
             }
             else if (Math.abs(x2 - x1) < Math.abs(y2 - y1))
@@ -466,10 +722,38 @@ public class MainActivity extends AppCompatActivity
             }
         }
 
-
-
         // Lior : Now I have the horizontals lines in horizontals list.
         //          And the verticals lines in a verticals list.
+
+        // Sort
+        Collections.sort(horizontals);
+        Collections.sort(verticals);
+
+        // Now delete the line with no another line with such angle.
+        // Now delete those with a difference bigger than maxDifference.
+        //removeUnParallelLines(horizontals, 1);
+        //removeUnParallelLines(verticals, 1);
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////
+        // Divide the image to 4 "buckets"
+        // And in each take the most far from the center of the image.
+
+        int linesRows = linesPMat.rows();
+        int linesCols = linesPMat.cols();
+
+        int imgRows = pyrDownGrayCanny.rows();
+        int imgCols = pyrDownGrayCanny.cols();
+
+        Point topLeft, topRight, bottomLeft, bottomRight;
+        int middleHor = pyrDownGrayCanny.rows() / 2;
+        int middleVer = pyrDownGrayCanny.cols() / 2;
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+
+
 
         // Lior : Now Find Intersection
         // computeIntersection - calculate the intersection of two lines.
@@ -488,60 +772,66 @@ public class MainActivity extends AppCompatActivity
 
         }
 
-
-        // Now delete the line with no another line with such angle.
-
-        ///////////////////////////////////////////////////////////////////////////////
-        // Divide the image to 4 "buckets"
-        // And in each take the most far from the center of the image.
-
-        int linesRows = linesPMat.rows();
-        int linesCols = linesPMat.cols();
-
-        int imgRows = pyrDownGrayCanny.rows();
-        int imgCols = pyrDownGrayCanny.cols();
-
-        Point topLeft, topRight, bottomLeft, bottomRight;
-        int middleHor = pyrDownGrayCanny.rows() / 2;
-        int middleVer = pyrDownGrayCanny.cols() / 2;
-
-
-
-        ////////////////////////////////////////////////////////////////////////////////
-
-
-        MatOfPoint2f approxCurve = new MatOfPoint2f();
-
         org.opencv.core.Point pointsArray[] = new org.opencv.core.Point[ intersections1.size() ];
         intersections1.toArray(pointsArray);
         MatOfPoint2f intersectionMat = new MatOfPoint2f(pointsArray);
 
         //Processing on mMOP2f1 which is in type MatOfPoint2f
-        double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
-        Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
+        //MatOfPoint2f approxCurve = new MatOfPoint2f();
+        //double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
+        //Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
 
 
 
-        // TODO: draw all the intersections. (see it ok)
-
-
+        // draw all the intersections. (see it ok)
         for (Point point: pointsArray)
         {
-            circle(pyrDown, point, 2, new Scalar(255, 0, 0), 3);
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            circle(pyrDown, point, 3, new Scalar(255, 0, 0), 2);
         }
 
 
 
-        // Draw the lines
-        for (int x = 0; x < linesPMat.rows(); x++)
+        // Draw the horizontals lines
+        for (int i = 0; i < horizontals.size(); i++)
         {
-            double[] l = linesPMat.get(x, 0);
-            Imgproc.line(pyrDown, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            Point start = horizontals.get(i)._start;
+            Point end = horizontals.get(i)._end;
+
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+            //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+        // Draw the verticals lines
+        for (int j = 0; j < verticals.size(); j++)
+        {
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            Point start = verticals.get(j)._start;
+            Point end = verticals.get(j)._end;
+
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
             //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
         }
 
 
+        // Draw the lines
+        //for (int x = 0; x < linesPMat.rows(); x++)
+        //{
+        //    //pyrDownGray - the blured image
+        //    //pyrDown - the unblured image.
+        //    double[] l = linesPMat.get(x, 0);
+        //    Imgproc.line(pyrDown, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        //    //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        //}
 
+
+
+        // pyrDownGray - the blured image
+        // pyrDown - the unblured image.
         // Show the Probabilistic Hough Line transform
         Bitmap imageMatched = Bitmap.createBitmap(pyrDown.cols(), pyrDown.rows(), Bitmap.Config.RGB_565);
         Utils.matToBitmap(pyrDown, imageMatched);
@@ -908,9 +1198,10 @@ public class MainActivity extends AppCompatActivity
     }// End of opening.
 
 
-
-
-
+    /**
+     * This function apply the GaussianBlur Algo. on a given Image.
+     * @param view
+     */
     public void smoothingGaussianBlurRun(View view)
     {
 
@@ -940,14 +1231,16 @@ public class MainActivity extends AppCompatActivity
 
         Bitmap imageMatched = Bitmap.createBitmap(img1.cols(), img1.rows(), Bitmap.Config.RGB_565);
         Utils.matToBitmap(img1, imageMatched);
-
         imageView.setImageBitmap(imageMatched);
-
-
 
     }// End of smoothingGaussianBlurRun.
 
 
+    /**
+     * This Function is an Helper to the medianBlur Function.
+     * @param i_ToBlur
+     * @return
+     */
     private Mat smoothingMedianBlurHelper(Mat i_ToBlur)
     {
         int MAX_KERNEL_LENGTH = 31;
@@ -959,6 +1252,12 @@ public class MainActivity extends AppCompatActivity
 
         return i_ToBlur;
     }
+
+
+    /**
+     * This Function apply The Median blur Algo. on a given Image.
+     * @param view
+     */
     public void smoothingMedianBlurRun(View view)
     {
 
@@ -1005,6 +1304,7 @@ public class MainActivity extends AppCompatActivity
 
     /**
      * NOT WORKING FOR NOW !
+     * This Function apply The Bilateral blur Algo. on a given Image.
      * @param view
      */
     public void smoothingBilateralBlurRun(View view)
@@ -1028,7 +1328,7 @@ public class MainActivity extends AppCompatActivity
 
         // pyrDown the size :
         Mat img1re = new Mat();
-        Imgproc.pyrDown(img1, img1re, new Size(img1.cols() / 2, img1.rows() / 2));
+        Imgproc.pyrDown(img1, img1re, new Size(img1.cols() / 10, img1.rows() / 10));
         img1.release();
 
         // covert the image to Channel scale :
@@ -1198,6 +1498,11 @@ public class MainActivity extends AppCompatActivity
 
     // OnClick of Button Launch Compare
     // DTO have been tried here..
+
+    /**
+     * This Function Apply the brute-force method of Feature Detection on two given Images.
+     * @param view
+     */
     public void secondCompareBruteForce(View view)
     {
 
@@ -1798,6 +2103,8 @@ public class MainActivity extends AppCompatActivity
 
     /**
      * Last point of WORK.
+     * This Function uses the ProbalsicHoughLines method to find (and draw), the lines in a given image.
+     * And the matching intersection points.
      * @param view
      */
     public void intersectionPointsProbalsicHoughLinesRun(View view)
@@ -2037,6 +2344,13 @@ public class MainActivity extends AppCompatActivity
 
     }
 
+    /**
+     * This Function draw intersection points.
+     * I didn't erase it, because of the demon if condition - YOU NEED TO FIND THE DIFFERENCE.
+     * @param a
+     * @param b
+     * @return
+     */
     private Point computeIntersect(double[] a, double[] b)
     {
         double x1 = a[0], y1 = a[1], x2 = a[2], y2 = a[3], x3 = b[0], y3 = b[1], x4 = b[2], y4 = b[3];
@@ -2130,6 +2444,10 @@ public class MainActivity extends AppCompatActivity
 
     }
 
+    /**
+     * This Function uses the ProbalsicHoughLines method to find (and draw), the lines in a given image.
+     * @param view
+     */
     public void probalsicHoughLinesRun(View view)
     {
         Log.v("message","Start of function call");
@@ -2184,27 +2502,17 @@ public class MainActivity extends AppCompatActivity
         }
 
 
-
-
-
-
-
         // Show the Probabilistic Hough Line transform
         Bitmap imageMatched = Bitmap.createBitmap(cannyColorP.cols(), cannyColorP.rows(), Bitmap.Config.RGB_565);
         Utils.matToBitmap(cannyColorP, imageMatched);
         imageView.setImageBitmap(imageMatched);
-
-
-
-
-
     }
 
 
     @Deprecated
     /**
      * "Deprecated Deprecated Deprecated"
-     * This was a first try function of 'regHoughLinesRun' and 'probalsicHoughLinesRun'.
+     * This was a first try function of 'regHoughLinesRun' and 'probalsicHoughLinesRun'. both in one function.
      * See the newer functions, with the following names for more accurate & cleaner information.
      * @param view
      */

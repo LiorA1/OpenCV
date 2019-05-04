@@ -12,7 +12,7 @@
     <LinearLayout
         android:id="@+id/LinearLayoutVerOuter"
         android:layout_width="0dp"
-        android:layout_height="509dp"
+        android:layout_height="0dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
@@ -31,7 +31,7 @@
             android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
             android:layout_marginEnd="8dp"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="8dp"
             android:layout_weight="3"
             android:nestedScrollingEnabled="true"
             android:scrollbars="vertical"
@@ -43,7 +43,7 @@
             android:id="@+id/imageViewMatches"
             android:layout_width="match_parent"
             android:layout_height="137dp"
-            android:layout_margin="16dp"
+            android:layout_margin="8dp"
             android:layout_weight="5"
             android:background="@color/colorPrimary"
             android:contentDescription="@string/miata"
@@ -53,10 +53,44 @@
             tools:layout_editor_absoluteX="16dp" />
 
         <LinearLayout
+            android:id="@+id/LinearLayourHor2"
+            android:layout_width="match_parent"
+            android:layout_height="26dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/buttonLaplace"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:onClick="laplaceCompute"
+                android:text="Laplace" />
+
+            <Button
+                android:id="@+id/buttonSobel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:onClick="sobelCompute"
+                android:text="Sobel" />
+
+            <Button
+                android:id="@+id/buttonShapeDet"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:onClick="shapeDet"
+                android:text="ShapeDetection" />
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/LinearLayoutInner"
             android:layout_width="match_parent"
-            android:layout_height="10dp"
-            android:layout_weight="3"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:orientation="horizontal">
 
             <Button
@@ -64,7 +98,7 @@
                 android:layout_width="97dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:onClick="CompareHistograms"
+                android:onClick="hsvEqualize"
                 android:text="ButtonHisto" />
 
             <Button
@@ -78,17 +112,6 @@
                 android:text="@string/buttonknn" />
 
             <Button
-                android:id="@+id/buttonCompare"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:onClick="shapeDet"
-                android:padding="0dp"
-                android:text="@string/buttonbf"
-                app:layout_constraintHorizontal_bias="1.0"
-                tools:layout_editor_absoluteY="16dp" />
-
-            <Button
                 android:id="@+id/buttonLines"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -96,8 +119,20 @@
                 android:onClick="intersectionPointsProbalsicHoughLinesRun"
                 android:text="HoughLines" />
 
+            <Button
+                android:id="@+id/buttonCompare"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:onClick="secondCompareBruteForce"
+                android:padding="0dp"
+                android:text="@string/buttonbf"
+                app:layout_constraintHorizontal_bias="1.0"
+                tools:layout_editor_absoluteY="16dp" />
+
         </LinearLayout>
 
     </LinearLayout>
+
 </android.support.constraint.ConstraintLayout>
 
