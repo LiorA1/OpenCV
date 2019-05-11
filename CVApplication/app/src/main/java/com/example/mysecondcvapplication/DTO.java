@@ -2,7 +2,7 @@ package com.example.mysecondcvapplication;
 
 import android.graphics.Bitmap;
 
-
+// Implements an Object that will contain the images, it's matching Explanation & more attributes.
 public class DTO implements Comparable<DTO>
 {
     private double _rate;

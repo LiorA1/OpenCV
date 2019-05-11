@@ -1,9 +1,11 @@
 package com.example.mysecondcvapplication;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
@@ -36,6 +38,11 @@ import org.opencv.features2d.ORB;
 import org.opencv.imgproc.CLAHE;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,6 +56,7 @@ import static org.opencv.core.CvType.CV_16S;
 import static org.opencv.imgproc.Imgproc.circle;
 import static org.opencv.imgproc.Imgproc.cvtColor;
 import static org.opencv.imgproc.Imgproc.equalizeHist;
+import static org.opencv.imgproc.Imgproc.putText;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -413,6 +421,322 @@ public class MainActivity extends AppCompatActivity
     }
 
 
+    /**
+     * This Function apply the sobel Edge detection on a given image.
+     * @param view
+     */
+    public void computeRectWSobelAlgo(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+
+        int elementType = Imgproc.CV_SHAPE_RECT;
+        int MAX_KERNEL_LENGTH = 13;
+        final int MAX_THRESHOLD = 255;
+        final int ROUNDS_OF_BLUR = 2;
+        int threshold = 100;
+
+
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        System.gc();
+
+        // Pyramid down :
+        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+        // Blur the image.
+        for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
+        {
+            Imgproc.medianBlur(pyrDown, pyrDown, i);
+
+            //Imgproc.GaussianBlur(pyrDownGray, pyrDownGray, new Size(i,i), 1, 1);
+            //
+        }
+
+
+        // convert the image to gray scale.
+        Mat pyrDownGray = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        //pyrDown.release(); - because going to use it..
+
+
+
+
+
+
+        int scale = 1;
+        int delta = 0;
+        int ddepth = CV_16S;
+        Mat grad_x = new Mat(), grad_y = new Mat();
+        Mat abs_grad_x = new Mat(), abs_grad_y = new Mat();
+
+        // Sobel Edge Detection Algo.
+        Imgproc.Sobel(pyrDownGray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
+        Imgproc.Sobel(pyrDownGray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
+
+        Core.convertScaleAbs(grad_x, abs_grad_x);
+        grad_x.release();
+        Core.convertScaleAbs(grad_y, abs_grad_y);
+        grad_y.release();
+        Mat grad = new Mat();
+        Core.addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
+        abs_grad_x.release();
+        abs_grad_y.release();
+
+
+
+
+
+
+
+
+
+        // Probabilistic Line Transform
+        Mat linesPMat = new Mat(); // will hold the results of the detection
+        Imgproc.HoughLinesP(grad, linesPMat, 1, (1 * Math.PI)/180,
+                150, 50, 0); // runs the actual detection
+
+
+
+
+
+        //////------------------------------Start adding here
+        // https://stackoverflow.com/questions/44825180/rectangle-document-detection-using-hough-transform-opencv-android
+
+
+        // Divide to Ver & Hor -
+        // TODO: move this code to another function named 'divideOrie' or something..
+        List<Line> horizontals = new ArrayList<>();
+        List<Line> verticals = new ArrayList<>();
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] vec = linesPMat.get(x, 0);
+            double x1 = vec[0], y1 = vec[1],
+                    x2 = vec[2], y2 = vec[3];
+
+
+            Point start = new Point(x1, y1);
+            Point end = new Point(x2, y2);
+            Line line = new Line(start, end);
+
+            if (Math.abs(x1 - x2) > Math.abs(y1 - y2))
+            {
+                horizontals.add(line); // Add to the horizontals lines list.
+            }
+            else if (Math.abs(x2 - x1) < Math.abs(y2 - y1))
+            {
+                verticals.add(line); // Add to the verticals lines list.
+            }
+        }
+
+        // Lior : Now I have the horizontals lines in horizontals list.
+        //          And the verticals lines in a verticals list.
+
+        // Sort
+        //Collections.sort(horizontals);
+        //Collections.sort(verticals);
+
+        // Now delete the line with no another line with such angle.
+        // Now delete those with a difference bigger than maxDifference.
+        //removeUnParallelLines(horizontals, 1);
+        //removeUnParallelLines(verticals, 1);
+
+
+
+        // Lior : Now Find Intersection
+        // computeIntersection - calculate the intersection of two lines.
+        // for each two lines - find intersection.
+
+        List<Point> intersections1 = new ArrayList<>();
+        for (Line horLine : horizontals)
+        {
+            for (Line verLine: verticals)
+            {
+                // calculate the intersection.
+                // Store it in an array of points.
+                intersections1.add(computeIntersection(horLine, verLine));
+
+            }
+
+        }
+
+        org.opencv.core.Point pointsArray[] = new org.opencv.core.Point[ intersections1.size() ];
+        intersections1.toArray(pointsArray);
+        //MatOfPoint2f intersectionMat = new MatOfPoint2f(pointsArray);
+
+        //Processing on mMOP2f1 which is in type MatOfPoint2f
+        //MatOfPoint2f approxCurve = new MatOfPoint2f();
+        //double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
+        //Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
+
+
+
+        // draw all the intersections. (see it ok)
+        for (Point point: pointsArray)
+        {
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            //circle(pyrDown, point, 3, new Scalar(255, 0, 0), 2);
+        }
+
+
+
+
+
+
+
+        // Draw the horizontals lines
+        for (int i = 0; i < horizontals.size(); i++)
+        {
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            Point start = horizontals.get(i)._start;
+            Point end = horizontals.get(i)._end;
+
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 2, Imgproc.LINE_AA, 0);
+            //Imgproc.line(grad, start, end, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+
+
+
+
+
+        // Draw the verticals lines
+        for (int j = 0; j < verticals.size(); j++)
+        {
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            Point start = verticals.get(j)._start;
+            Point end = verticals.get(j)._end;
+
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 2, Imgproc.LINE_AA, 0);
+            //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(pyrDown.cols(), pyrDown.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(pyrDown, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+        /*
+
+
+        // Draw the lines
+        //for (int x = 0; x < linesPMat.rows(); x++)
+        //{
+        //    //pyrDownGray - the blured image
+        //    //pyrDown - the unblured image.
+        //    double[] l = linesPMat.get(x, 0);
+        //    Imgproc.line(pyrDown, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        //    //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        //}
+
+
+
+
+
+
+
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(pyrDown.cols(), pyrDown.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(pyrDown, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+        //*/
+
+
+    }
+
+
+    /**
+     * This Function apply the Laplace Edge detection on a given Image.
+     * @param view
+     */
+    public void computeRectWLaplaceAlgo(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+
+        int elementType = Imgproc.CV_SHAPE_RECT;
+        int MAX_KERNEL_LENGTH = 13;
+        final int MAX_THRESHOLD = 255;
+        final int ROUNDS_OF_BLUR = 2;
+        int threshold = 100;
+
+
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1290_resize75, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        System.gc();
+
+        // Pyramid down :
+        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+        // Blur the image.
+        for(int i = 1 ; i < MAX_KERNEL_LENGTH ; i = i + 2 )
+        {
+            Imgproc.medianBlur(pyrDown, pyrDown, i);
+
+            //Imgproc.GaussianBlur(pyrDownGray, pyrDownGray, new Size(i,i), 1, 1);
+            //
+        }
+
+
+        // convert the image to gray scale.
+        Mat pyrDownGray = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        //pyrDown.release();
+
+
+
+        int kernel_size = 3;
+        int scale = 1;
+        int delta = 0;
+        int ddepth = CvType.CV_16S;
+        Mat dst = new Mat();
+
+        Imgproc.Laplacian( pyrDownGray, dst, ddepth, kernel_size, scale, delta, Core.BORDER_DEFAULT );
+
+        // converting back to CV_8U
+        Mat abs_dst = new Mat();
+        Core.convertScaleAbs( dst, abs_dst );
+
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(abs_dst.cols(), abs_dst.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(abs_dst, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+    }
+
+
     public void hsvEqualize(View view)
     {
         Log.v("message","Start of function call");
@@ -623,6 +947,140 @@ public class MainActivity extends AppCompatActivity
 
     }
 
+
+    /**
+     * This Func. wrap around given points.
+     * @param view
+     */
+    public void wrapPerspective(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+
+        int MAX_KERNEL_LENGTH = 13;
+
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        System.gc();
+
+        // Pyramid down :
+        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+        // convert the image to gray scale.
+        Mat pyrDownGray = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        //pyrDown.release();
+
+
+
+        Point topLeft = new Point(36, 28);
+        Point topRight = new Point(162, 87);
+        Point bottomRight = new Point(184, 343);
+        Point bottomLeft = new Point(36, 323);
+
+        circle(pyrDown, topLeft, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, topRight, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, bottomRight, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, bottomLeft, 2, new Scalar(0, 255, 0), 2);
+
+
+        double upperWidth = Math.sqrt(Math.pow(topLeft.x - topRight.x, 2) + Math.pow(topLeft.y - topRight.y, 2));
+        double bottomWidth = Math.sqrt(Math.pow(bottomLeft.x - bottomRight.x, 2) + Math.pow(bottomLeft.y - bottomRight.y, 2));
+        double maxWidth = Math.max(upperWidth, bottomWidth);
+
+        double rightHeight = Math.sqrt(Math.pow(topRight.x - bottomRight.x, 2) + Math.pow(topRight.y - bottomRight.y, 2));
+        double leftHeight = Math.sqrt(Math.pow(topLeft.x - bottomLeft.x, 2) + Math.pow(topLeft.y - bottomLeft.y, 2));
+        double maxHeight = Math.max(rightHeight, leftHeight);
+
+
+        MatOfPoint2f src = new MatOfPoint2f(topLeft, topRight, bottomRight, bottomLeft);
+
+        MatOfPoint2f dst = new MatOfPoint2f(
+                new Point(0, 0),
+                new Point( maxWidth,0),
+                new Point(maxWidth, maxHeight),
+                new Point(0, maxHeight) );
+
+
+
+        Mat warpMat = Imgproc.getPerspectiveTransform(src, dst);
+        //This is you new image as Mat
+        Mat destImage = new Mat();
+        Size warpedImageSize = new Size(maxWidth + 1, maxHeight + 1);
+        Imgproc.warpPerspective(pyrDown, destImage, warpMat, warpedImageSize);
+
+
+        // pyrDownGray - the blured image
+        // pyrDown - the unblured image.
+        // Show the Probabilistic Hough Line transform
+        Bitmap imageMatched = Bitmap.createBitmap(destImage.cols(), destImage.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(destImage, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+        imageViewMy.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+
+        try
+        {
+            String state = Environment.getExternalStorageState();
+
+            if(!Environment.MEDIA_MOUNTED.equals(state))
+            {
+                // Not Mounted - we cant write to it.
+                return;
+            }
+            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "des2.jpeg");
+
+
+            file.createNewFile();
+
+            FileOutputStream FOS = new FileOutputStream(file, false);
+
+            imageMatched.compress(Bitmap.CompressFormat.JPEG, 100, FOS);
+
+            FOS.flush();
+            FOS.close();
+
+
+        }
+        catch (FileNotFoundException e)
+        {
+            e.printStackTrace();
+            Log.e("SavingImage:", e.getMessage());
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            Log.e("SavingImage:", e.getMessage());
+        }
+        catch (Exception e)
+        {
+            Log.e("SavingImage:", e.getMessage());
+        }
+
+
+
+        //Img_hash
+
+
+
+        Log.v("message","End of function call");
+
+    }// End of wrapPerspective.
+
+
+
+
     /**
      * Another last point of work: Here I started to mix resize, blur, gray, canny and HoughLineP !.
      * THE NEXT ONE NEED TO BE INTERSECTION COMPUTE AND THE FIND THE BIGGEST RECTANGLE IN THE IMAGE.
@@ -681,7 +1139,7 @@ public class MainActivity extends AppCompatActivity
         // operate Canny filter :
         // https://docs.opencv.org/3.4.5/da/d5c/tutorial_canny_detector.html
         Mat pyrDownGrayCanny = new Mat();
-        Imgproc.Canny(pyrDownGray, pyrDownGrayCanny, 30, 100);
+        Imgproc.Canny(pyrDownGray, pyrDownGrayCanny, 35, 100);
         //pyrDownGray.release();
 
 
@@ -746,7 +1204,7 @@ public class MainActivity extends AppCompatActivity
         int imgRows = pyrDownGrayCanny.rows();
         int imgCols = pyrDownGrayCanny.cols();
 
-        Point topLeft, topRight, bottomLeft, bottomRight;
+        //Point topLeft, topRight, bottomLeft, bottomRight;
         int middleHor = pyrDownGrayCanny.rows() / 2;
         int middleVer = pyrDownGrayCanny.cols() / 2;
 
@@ -783,14 +1241,23 @@ public class MainActivity extends AppCompatActivity
 
 
 
+        StringBuilder strB = new StringBuilder(" ");
         // draw all the intersections. (see it ok)
         for (Point point: pointsArray)
         {
             // pyrDownGray - the blured image
             // pyrDown - the unblured image.
-            circle(pyrDown, point, 3, new Scalar(255, 0, 0), 2);
+            circle(pyrDown, point, 2, new Scalar(255, 0, 0), 2);
+            DecimalFormat df = new DecimalFormat("#.00");
+
+            strB.append(point.toString() + "\n");
+
+            String x = df.format(point.x);
+            String y = df.format(point.y);
+            putText(pyrDown, "{ " + x + ", " + y + "}", point, Core.FONT_ITALIC, 0.45, new Scalar(255, 0, 0));
         }
 
+        textViewMy.setText(strB);
 
 
         // Draw the horizontals lines
@@ -801,7 +1268,7 @@ public class MainActivity extends AppCompatActivity
             Point start = horizontals.get(i)._start;
             Point end = horizontals.get(i)._end;
 
-            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 2, Imgproc.LINE_AA, 0);
             //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
         }
 
@@ -813,7 +1280,7 @@ public class MainActivity extends AppCompatActivity
             Point start = verticals.get(j)._start;
             Point end = verticals.get(j)._end;
 
-            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 2, Imgproc.LINE_AA, 0);
             //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
         }
 
@@ -830,12 +1297,56 @@ public class MainActivity extends AppCompatActivity
 
 
 
+
+
+        Point topLeft = new Point(36, 28);
+        Point topRight = new Point(162, 87);
+        Point bottomRight = new Point(184, 343);
+        Point bottomLeft = new Point(36, 323);
+
+
+        circle(pyrDown, topLeft, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, topRight, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, bottomRight, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, bottomLeft, 2, new Scalar(0, 255, 0), 2);
+
+
+
+
+        double upperWidth = Math.sqrt(Math.pow(topLeft.x - topRight.x, 2) + Math.pow(topLeft.y - topRight.y, 2));
+        double bottomWidth = Math.sqrt(Math.pow(bottomLeft.x - bottomRight.x, 2) + Math.pow(bottomLeft.y - bottomRight.y, 2));
+        double maxWidth = Math.max(upperWidth, bottomWidth);
+
+        double rightHeight = Math.sqrt(Math.pow(topRight.x - bottomRight.x, 2) + Math.pow(topRight.y - bottomRight.y, 2));
+        double leftHeight = Math.sqrt(Math.pow(topLeft.x - bottomLeft.x, 2) + Math.pow(topLeft.y - bottomLeft.y, 2));
+        double maxHeight = Math.max(rightHeight, leftHeight);
+
+
+        MatOfPoint2f src = new MatOfPoint2f(topLeft, topRight, bottomRight, bottomLeft);
+        MatOfPoint2f dst = new MatOfPoint2f(
+                new Point(0, 0),
+                new Point(maxWidth,0),
+                new Point(maxWidth,maxHeight),
+                new Point(0,maxHeight)
+        );
+
+        //MatOfPoint2f dst2 = new MatOfPoint2f(pyrDown.size());
+
+
+        Mat warpMat = Imgproc.getPerspectiveTransform(src, dst);
+        //This is you new image as Mat
+        Mat destImage = new Mat();
+        Imgproc.warpPerspective(pyrDown, destImage, warpMat, pyrDown.size());
+
+
         // pyrDownGray - the blured image
         // pyrDown - the unblured image.
         // Show the Probabilistic Hough Line transform
-        Bitmap imageMatched = Bitmap.createBitmap(pyrDown.cols(), pyrDown.rows(), Bitmap.Config.RGB_565);
-        Utils.matToBitmap(pyrDown, imageMatched);
+        Bitmap imageMatched = Bitmap.createBitmap(destImage.cols(), destImage.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(destImage, imageMatched);
         imageViewMy.setImageBitmap(imageMatched);
+        imageViewMy.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+
 
 
         /*

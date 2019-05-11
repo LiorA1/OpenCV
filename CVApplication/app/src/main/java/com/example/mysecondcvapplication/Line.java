@@ -32,9 +32,9 @@ class Line implements Comparable<Line>
     @Override
     public int compareTo(Line i_Other)
     {
-        int result ;
-        double slope = (this._start.y - this._end.y)/(this._start.x - this._end.x);
-        double slopeOther = (i_Other._start.y - i_Other._end.y)/(i_Other._start.x - i_Other._end.x);
+        int result = 0;
+        double slope = this.getSlope();
+        double slopeOther = i_Other.getSlope();
 
         if(slope >= slopeOther)
             result = 1;
@@ -44,7 +44,7 @@ class Line implements Comparable<Line>
         return result;
     }
 
-    private Point on = new Point(5,6);
+    //private Point on = new Point(5,6);
 
 
 }
