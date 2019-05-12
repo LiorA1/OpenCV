@@ -1,3 +1,5 @@
+
+
 import com.github.kilianB.hash.Hash;
 import com.github.kilianB.hashAlgorithms.AverageHash;
 import com.github.kilianB.hashAlgorithms.HashingAlgorithm;
