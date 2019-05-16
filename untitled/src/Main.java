@@ -14,8 +14,10 @@ public class Main
 
     public static void main(String[] args)
     {
+        System.out.println("Hello World!");
+
         File img0 = new File("Pictures/allowedKey.jpg");
-        File img1 = new File("Pictures/dsc1304.jpg");
+        File img1 = new File("Pictures/dsc_1247cutted1.JPG");
 
         try
         {
@@ -34,6 +36,10 @@ public class Main
         {
             System.out.println("Exists");
         }
+        else
+        {
+            System.out.println("Not Exists");
+        }
 
         HashingAlgorithm hashingAlgorithm = new PerceptiveHash(32);
 
@@ -47,7 +53,11 @@ public class Main
             if(similarityScore < 0.35)
             {
                 // considered a duplicate in this particular case.
-                System.out.println("Similar !");
+                System.out.println(" Test 1 : Similar !");
+            }
+            else
+            {
+                System.out.println(" Test 1 : Not Similar !");
             }
 
 
@@ -60,7 +70,11 @@ public class Main
             if(matcher.checkSimilarity(img0, img1))
             {
                 // Consider a duplicate in this particular case.
-                System.out.println("Similar !");
+                System.out.println("  Test 2 : Similar !");
+            }
+            else
+            {
+                System.out.println("  Test 2 : Not Similar !");
             }
 
 
@@ -75,9 +89,6 @@ public class Main
         }
 
 
-        System.out.println("Hello World!");
-
-
-        System.out.println("Hello World!");
+        System.out.println("End ..");
     }
 }
