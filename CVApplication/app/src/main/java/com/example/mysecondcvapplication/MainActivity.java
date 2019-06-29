@@ -50,12 +50,15 @@ import java.util.List;
 import java.util.Random;
 
 import static org.opencv.core.Core.BORDER_DEFAULT;
+import static org.opencv.core.Core.inRange;
 import static org.opencv.core.Core.merge;
 import static org.opencv.core.Core.split;
 import static org.opencv.core.CvType.CV_16S;
+import static org.opencv.imgproc.Imgproc.COLOR_BGR2HSV;
 import static org.opencv.imgproc.Imgproc.circle;
 import static org.opencv.imgproc.Imgproc.cvtColor;
 import static org.opencv.imgproc.Imgproc.equalizeHist;
+import static org.opencv.imgproc.Imgproc.line;
 import static org.opencv.imgproc.Imgproc.putText;
 
 public class MainActivity extends AppCompatActivity
@@ -267,6 +270,57 @@ public class MainActivity extends AppCompatActivity
     }
 
 
+
+    public void colorMask(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        //one.recycle(); //Undefined behaviour ..
+        System.gc();
+
+
+
+        // downsize the image.
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 4, img1.rows() / 4));
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        img1.release();
+
+        Mat img2 = new Mat();
+        cvtColor(pyrDown, img2, COLOR_BGR2HSV);
+
+
+
+        Mat yellow = new Mat();
+        //Scalar yellowRGB = new Scalar();
+        inRange(img2, new Scalar(15, 0, 0), new Scalar(36, 255, 255), yellow);
+        //inRange(img2, new Scalar(229, 255, 204), new Scalar(51, 51, 0), yellow);
+        //inRange(img2, new Scalar(51, 51, 0), new Scalar(229, 255, 204), yellow);
+        //inRange(img2, new Scalar(229, 255, 204), new Scalar(51, 51, 0), yellow);
+        pyrDown.release();
+
+        line(yellow, new Point(0,0), new Point(100, 100), new Scalar(51, 51, 0));
+        circle(yellow, new Point(25, 25), 5, new Scalar(229, 255, 204));
+        circle(yellow, new Point(75, 75), 5, new Scalar(51, 51, 0));
+
+
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(yellow.cols(), yellow.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(yellow, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+        Log.v("message","End of function call");
+    }
 
     public void morphGradient(View view)
     {
