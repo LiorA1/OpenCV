@@ -49,7 +49,7 @@
             android:contentDescription="@string/miata"
             android:scaleType="centerInside"
             android:visibility="visible"
-            app:srcCompat="@drawable/dsc_1247"
+            app:srcCompat="@drawable/dsc_1247_resize75"
             tools:layout_editor_absoluteX="16dp" />
 
         <LinearLayout

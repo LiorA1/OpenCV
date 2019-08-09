@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">ParkAdvisor</string>
+    <string name="textview_details">TextView</string>
+    <string name="capture">Capture</string>
+    <string name="settings">Settings</string>
+    <string name="a_parking_sign">a parking sign</string>
+</resources>

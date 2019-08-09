@@ -6,11 +6,13 @@ class Line implements Comparable<Line>
 {
     public Point _start;
     public Point _end;
+    public double _slope;
 
     public Line(Point i_Start, Point i_End)
     {
         this._start = i_Start;
         this._end = i_End;
+        this._slope = getSlope();
     }
 
     public double getSlope()

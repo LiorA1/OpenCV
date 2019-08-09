@@ -31,6 +31,7 @@ import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
+import org.opencv.core.TermCriteria;
 import org.opencv.features2d.BFMatcher;
 import org.opencv.features2d.DescriptorMatcher;
 import org.opencv.features2d.Features2d;
@@ -46,20 +47,35 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
 import static org.opencv.core.Core.BORDER_DEFAULT;
+import static org.opencv.core.Core.bitwise_and;
+import static org.opencv.core.Core.bitwise_not;
 import static org.opencv.core.Core.inRange;
+import static org.opencv.core.Core.kmeans;
 import static org.opencv.core.Core.merge;
 import static org.opencv.core.Core.split;
 import static org.opencv.core.CvType.CV_16S;
+import static org.opencv.core.CvType.CV_16UC3;
+import static org.opencv.core.CvType.CV_8UC3;
 import static org.opencv.imgproc.Imgproc.COLOR_BGR2HSV;
+import static org.opencv.imgproc.Imgproc.COLOR_BGRA2BGR;
+import static org.opencv.imgproc.Imgproc.COLOR_HSV2BGR;
+import static org.opencv.imgproc.Imgproc.COLOR_HSV2BGR_FULL;
+import static org.opencv.imgproc.Imgproc.COLOR_HSV2RGB;
+import static org.opencv.imgproc.Imgproc.COLOR_RGB2GRAY;
+import static org.opencv.imgproc.Imgproc.COLOR_RGB2HSV;
+import static org.opencv.imgproc.Imgproc.COLOR_RGBA2RGB;
+import static org.opencv.imgproc.Imgproc.Canny;
 import static org.opencv.imgproc.Imgproc.circle;
 import static org.opencv.imgproc.Imgproc.cvtColor;
 import static org.opencv.imgproc.Imgproc.equalizeHist;
 import static org.opencv.imgproc.Imgproc.line;
 import static org.opencv.imgproc.Imgproc.putText;
+import static org.opencv.imgproc.Imgproc.pyrMeanShiftFiltering;
 
 public class MainActivity extends AppCompatActivity
 {
@@ -276,48 +292,382 @@ public class MainActivity extends AppCompatActivity
         Log.v("message","Start of function call");
         ImageView imageViewMy = findViewById(R.id.imageViewMatches);
         TextView textViewMy = findViewById(R.id.textViewDist);
-        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+        //textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+        int BLUR_MAX_KERNEL_LENGTH = 25;
 
         //Image Input :
         Bitmap one =
-                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1247, this.getTheme()));
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme()));
         Mat img1 = new Mat();
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
-        //one.recycle(); //Undefined behaviour ..
+
+        one.recycle(); //Undefined behaviour ..
         System.gc();
 
 
 
+
         // downsize the image.
-        Mat pyrDown = new Mat();
-        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 4, img1.rows() / 4));
-        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        Mat pyrDowntmp = new Mat();
+        Imgproc.resize(img1, pyrDowntmp, new Size(img1.cols() / 4, img1.rows() / 4));
         img1.release();
 
-        Mat img2 = new Mat();
-        cvtColor(pyrDown, img2, COLOR_BGR2HSV);
+        Mat pyrDown = new Mat();
+        cvtColor(pyrDowntmp, pyrDown, COLOR_RGBA2RGB);
+        pyrDowntmp.release();
+
+        //pyrDowntmp.dump();
+        //img1.dump();
+
+
+        // Blur the image.
+        Mat pyrDownBlur = new Mat();
+        System.gc();
+
+        Imgproc.medianBlur(pyrDown, pyrDownBlur, 11);
+
+
+        for(int i = 1 ; i < BLUR_MAX_KERNEL_LENGTH ; i = i + 2 )
+        {
+            Imgproc.medianBlur(pyrDownBlur, pyrDownBlur, i);
+            //Imgproc.blur(pyrDownBlur, pyrDownBlur, new Size(i,i));
+            //Imgproc.GaussianBlur(pyrDownBlur, pyrDownBlur, new Size(i,i), 1, 1);
+
+            //System.gc();
+        }
+
+        for(int i = BLUR_MAX_KERNEL_LENGTH ; 0 < i ; i = i - 2 )
+        {
+            Imgproc.medianBlur(pyrDownBlur, pyrDownBlur, i);
+            //Imgproc.blur(pyrDownBlur, pyrDownBlur, new Size(i,i));
+            //Imgproc.GaussianBlur(pyrDownBlur, pyrDownBlur, new Size(i,i), 1, 1);
+
+            //System.gc();
+        }
 
 
 
-        Mat yellow = new Mat();
+        Mat blurHsvImg = new Mat();
+        cvtColor(pyrDownBlur, blurHsvImg, COLOR_RGB2HSV);
+        //pyrDown.release();
+
+        Mat yellowMask = new Mat();
+        //Mat greenMask = new Mat();
         //Scalar yellowRGB = new Scalar();
-        inRange(img2, new Scalar(15, 0, 0), new Scalar(36, 255, 255), yellow);
-        //inRange(img2, new Scalar(229, 255, 204), new Scalar(51, 51, 0), yellow);
-        //inRange(img2, new Scalar(51, 51, 0), new Scalar(229, 255, 204), yellow);
-        //inRange(img2, new Scalar(229, 255, 204), new Scalar(51, 51, 0), yellow);
-        pyrDown.release();
+        //inRange(img2, new Scalar(23, 41, 133), new Scalar(40, 150, 255), yellow);
+        //inRange(hsvImg, new Scalar(50, 200, 40), new Scalar(70, 255, 255), greenMask); // green
+        //inRange(hsvImg, new Scalar(20, 100, 100), new Scalar(30, 255, 255), yellowMask); // yellow.
+        //hsvImg.release();
 
-        line(yellow, new Point(0,0), new Point(100, 100), new Scalar(51, 51, 0));
-        circle(yellow, new Point(25, 25), 5, new Scalar(229, 255, 204));
-        circle(yellow, new Point(75, 75), 5, new Scalar(51, 51, 0));
+        //Mat res = new Mat(img2.rows(), img2.cols(), img2.type());
+
+        //inRange(hsvImg, new Scalar(100, 150, 0), new Scalar(140, 255, 255), greenMask); // blue - giving black isolation.
+        inRange(blurHsvImg, new Scalar(7, 41, 40), new Scalar(18, 255, 255), yellowMask); // try
+        blurHsvImg.release();
+
+        //TODO : find out what is the true value of the signs !. Answer: 15. I used a wrong color space.
+        // TODO : after that isolation, what will be my next step ?.
+
+
+        for(int i = BLUR_MAX_KERNEL_LENGTH ; 0 < i ; i = i - 2 )
+        {
+            Imgproc.medianBlur(yellowMask, yellowMask, i);
+            //Imgproc.blur(pyrDownBlur, pyrDownBlur, new Size(i,i));
+            //Imgproc.GaussianBlur(yellowMask, yellowMask, new Size(i,i), 1, 1);
+
+            //System.gc();
+        }
 
 
 
 
-        Bitmap imageMatched = Bitmap.createBitmap(yellow.cols(), yellow.rows(), Bitmap.Config.RGB_565);
-        Utils.matToBitmap(yellow, imageMatched);
+
+
+        Mat pyrDownBlurMasked = new Mat();
+        Mat NotYellowMask = new Mat();
+        bitwise_not(yellowMask, NotYellowMask);
+        pyrDownBlur.copyTo(pyrDownBlurMasked, yellowMask);
+
+        yellowMask.release();
+        NotYellowMask.release();
+
+
+
+
+        //to get black & white:
+        ///Mat template = pyrDown.clone();
+        ///template.setTo(new Scalar(255, 255, 255));
+        ///template.copyTo(res, yellowMask);
+
+        //bitwise_and(img2, yellow, res);
+        //
+
+
+
+
+        // convert the image to gray scale.
+        Mat pyrDownBlurMaskedGray = new Mat();
+        Imgproc.cvtColor(pyrDownBlurMasked, pyrDownBlurMaskedGray, Imgproc.COLOR_RGB2GRAY);
+
+        pyrDownBlurMasked.release();
+
+        ///Bitmap imageMatched = Bitmap.createBitmap(pyrDownBlurMaskedGray.cols(), pyrDownBlurMaskedGray.rows(), Bitmap.Config.RGB_565);
+        ///Utils.matToBitmap(pyrDownBlurMaskedGray, imageMatched);
+        ///imageViewMy.setImageBitmap(imageMatched);
+
+
+
+
+        // AFTER
+
+
+
+
+
+
+        int scale = 1;
+        int delta = 0;
+        int ddepth = CV_16S;
+        Mat grad_x = new Mat(), grad_y = new Mat();
+        Mat abs_grad_x = new Mat(), abs_grad_y = new Mat();
+
+        // Sobel Edge Detection Algo.
+        Imgproc.Sobel(pyrDownBlurMaskedGray, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
+        Imgproc.Sobel(pyrDownBlurMaskedGray, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
+
+        pyrDownBlurMasked.release();
+        pyrDownBlurMaskedGray.release();
+
+
+        Core.convertScaleAbs(grad_x, abs_grad_x);
+        grad_x.release();
+        Core.convertScaleAbs(grad_y, abs_grad_y);
+        grad_y.release();
+        // add the two grads
+        Mat grad = new Mat();
+        Core.addWeighted( abs_grad_x, 0.5, abs_grad_y, 0.5, 0, grad );
+        abs_grad_x.release();
+        abs_grad_y.release();
+
+
+        //Mat e = new Mat();
+        //Canny(pyrDownBlurMaskedGray, e, 10, 120);
+
+
+
+
+
+        // Probabilistic Line Transform
+        Mat linesPMat = new Mat(); // will hold the results of the detection
+        Imgproc.HoughLinesP(grad, linesPMat, 1, (1 * Math.PI)/180,
+                10, 60, 0); // runs the actual detection
+
+        grad.release();
+
+
+
+        // Divide to Ver & Hor -
+        // TODO: move this code to another function named 'divideOrie' or something..
+        List<Line> horizontals = new ArrayList<>();
+        List<Line> verticals = new ArrayList<>();
+        for (int x = 0; x < linesPMat.rows(); x++)
+        {
+            double[] vec = linesPMat.get(x, 0);
+            double x1 = vec[0], y1 = vec[1],
+                    x2 = vec[2], y2 = vec[3];
+
+            Point start = new Point(x1, y1);
+            Point end = new Point(x2, y2);
+            Line line = new Line(start, end);
+
+            if (Math.abs(x1 - x2) > Math.abs(y1 - y2))
+            {
+                horizontals.add(line); // Add to the horizontals lines list.
+            }
+            else if (Math.abs(x2 - x1) < Math.abs(y2 - y1))
+            {
+                verticals.add(line); // Add to the verticals lines list.
+            }
+        }
+
+        linesPMat.release();
+
+
+        // Lior : Now Find Intersection
+        // computeIntersection - calculate the intersection of two lines.
+        // for each two lines - find intersection.
+
+        List<Point> intersections1 = new ArrayList<>();
+        for (Line horLine : horizontals)
+        {
+            for (Line verLine: verticals)
+            {
+                // calculate the intersection.
+                // Store it in an array of points.
+                intersections1.add(computeIntersection(horLine, verLine));
+
+            }
+
+            System.gc();
+
+        }
+
+
+
+
+
+
+        List<Point> intersectionsToBeDelete = new ArrayList<>();
+        for(int index = 0; index < intersections1.size(); index++)
+        {
+            for(int innerIndex = index + 1; innerIndex < intersections1.size(); innerIndex++)
+            {
+                double horDist = Math.pow(intersections1.get(index).x - intersections1.get(innerIndex).x, 2);
+                double verDist = Math.pow(intersections1.get(index).y - intersections1.get(innerIndex).y, 2);
+                double distance = Math.sqrt(horDist + verDist);
+                if(distance < 6)
+                {
+                    intersectionsToBeDelete.add(intersections1.get(index));
+                    break;
+                }
+            }
+        }
+
+        intersections1.removeAll(intersectionsToBeDelete);
+
+
+
+        org.opencv.core.Point pointsArray[] = new org.opencv.core.Point[ intersections1.size() ];
+        intersections1.toArray(pointsArray);
+        //MatOfPoint2f intersectionMat = new MatOfPoint2f(pointsArray);
+
+        //Processing on mMOP2f1 which is in type MatOfPoint2f
+        //MatOfPoint2f approxCurve = new MatOfPoint2f();
+        //double approxDistance = Imgproc.arcLength(intersectionMat, true) * 0.02;
+        //Imgproc.approxPolyDP(intersectionMat, approxCurve, approxDistance, true);
+
+
+
+
+        Mat intersections = new Mat();
+
+        // draw all the intersections. (see it ok)
+
+        for (Point point: pointsArray)
+        {
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            circle(pyrDown, point, 5, new Scalar(255, 0, 0), 2);//Red
+            circle(intersections, point, 5, new Scalar(255, 0, 0), 2);//Red
+        }
+
+        Point bottomRight = new Point(0,0);
+        Point upperLeft = new Point(pointsArray[0].x, pointsArray[0].y);
+
+        for(Point point: pointsArray)
+        {
+            if(point.x + point.y > bottomRight.x + bottomRight.y)
+            {
+                bottomRight.x = point.x;
+                bottomRight.y = point.y;
+            }
+            else if(point.x + point.y < upperLeft.x + upperLeft.y)
+            {
+                upperLeft.x = point.x;
+                upperLeft.y = point.y;
+            }
+
+        }
+
+        circle(pyrDown, bottomRight, 5, new Scalar(255, 255, 0), 4);//YELLOW
+        circle(pyrDown, upperLeft, 5, new Scalar(255, 255, 0), 4);//YELLOW
+
+
+
+
+
+        //pyrDown.copyTo(intersections);
+
+        Mat intersections32f = new Mat();
+        intersections.convertTo(intersections32f, CvType.CV_32F);
+        intersections.release();
+
+        Mat labels = Mat.zeros(intersections32f.rows(), intersections32f.cols(), CvType.CV_32F);
+
+        double[] o = labels.get(0, 0);
+        double[] o1 = labels.get(labels.rows() - 1, 0);
+        double[] o2 = labels.get(labels.rows() - 1, labels.cols() - 1);
+        double[] o3 =labels.get(0, labels.cols() - 1);
+
+        labels.put(0, 0, 1.0);
+        labels.put(labels.rows() - 1, 0, 1);
+        labels.put(labels.rows() - 1, labels.cols() - 1, 1);
+        labels.put(0, labels.cols() - 1, 1);
+
+        o = labels.get(0, 0);
+        o1 = labels.get(labels.rows() - 1, 0);
+        o2 = labels.get(labels.rows() - 1, labels.cols() - 1);
+        o3 =labels.get(0, labels.cols() - 1);
+
+        TermCriteria criteria = new TermCriteria(TermCriteria.COUNT, 100, 1);
+        int attempts = 50;
+        int flags = Core.KMEANS_PP_CENTERS;
+        Mat centers = new Mat();
+        double res = kmeans(intersections32f, 4, labels, criteria, attempts, flags, centers);
+
+
+        String centersString = centers.toString();
+
+        Bitmap imageMatched = Bitmap.createBitmap(centers.cols(), centers.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(centers, imageMatched);
         imageViewMy.setImageBitmap(imageMatched);
 
+        /*
+        public static double kmeans(@NotNull Mat data,
+        int K,
+        @NotNull Mat bestLabels,
+        @NotNull TermCriteria criteria,
+        int attempts,
+        int flags)
+        */
+        /*
+
+        // Draw the horizontals lines
+        for (int i = 0; i < horizontals.size(); i++)
+        {
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            Point start = horizontals.get(i)._start;
+            Point end = horizontals.get(i)._end;
+
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 0, 255), 2, Imgproc.LINE_AA, 0);//Blue
+            //Imgproc.line(grad, start, end, new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+        //
+
+
+        // Draw the verticals lines
+        for (int j = 0; j < verticals.size(); j++)
+        {
+            // pyrDownGray - the blured image
+            // pyrDown - the unblured image.
+            Point start = verticals.get(j)._start;
+            Point end = verticals.get(j)._end;
+
+            Imgproc.line(pyrDown, start, end, new Scalar(0, 255, 0), 2, Imgproc.LINE_AA, 0);//Green
+            //Imgproc.line(pyrDownGrayCanny, new Point(l[0], l[1]), new Point(l[2], l[3]), new Scalar(0, 0, 255), 3, Imgproc.LINE_AA, 0);
+        }
+        //
+
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(pyrDown.cols(), pyrDown.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(pyrDown, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+
+        //*/
 
         Log.v("message","End of function call");
     }
@@ -497,7 +847,7 @@ public class MainActivity extends AppCompatActivity
 
         //Image Input :
         Bitmap one =
-                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme()));
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1290_resize75, this.getTheme()));
         Mat img1 = new Mat();
         Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
         System.gc();
@@ -522,7 +872,7 @@ public class MainActivity extends AppCompatActivity
 
         // convert the image to gray scale.
         Mat pyrDownGray = new Mat();
-        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_RGB2GRAY);
         //pyrDown.release(); - because going to use it..
 
 
