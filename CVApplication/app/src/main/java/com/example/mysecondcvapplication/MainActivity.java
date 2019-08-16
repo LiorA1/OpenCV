@@ -287,6 +287,144 @@ public class MainActivity extends AppCompatActivity
 
 
 
+    /**
+     * This Func. wrap around given points.
+     * @param view
+     */
+    public void wrapPerspective(View view)
+    {
+        Log.v("message","Start of function call");
+        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
+        TextView textViewMy = findViewById(R.id.textViewDist);
+        textViewMy.setMovementMethod(new ScrollingMovementMethod());
+
+
+        int MAX_KERNEL_LENGTH = 13;
+
+
+        //Image Input :
+        Bitmap one =
+                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme()));
+        Mat img1 = new Mat();
+        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
+        System.gc();
+
+        // Pyramid down :
+        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
+        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
+        // Resize down :
+        Mat pyrDown = new Mat();
+        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
+        img1.release();
+
+        // convert the image to gray scale.
+        Mat pyrDownGray = new Mat();
+        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
+        //pyrDown.release();
+
+
+
+        // the selected 4 points: (please handle with care)
+        Point topLeft = new Point(36, 28);
+        Point topRight = new Point(162, 87);
+        Point bottomRight = new Point(184, 343);
+        Point bottomLeft = new Point(36, 323);
+
+        // for draw it on the image :
+
+        circle(pyrDown, topLeft, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, topRight, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, bottomRight, 2, new Scalar(0, 255, 0), 2);
+        circle(pyrDown, bottomLeft, 2, new Scalar(0, 255, 0), 2);
+
+        // finished draw it on the image.
+
+        // find the maxWidth
+        double upperWidth = Math.sqrt(Math.pow(topLeft.x - topRight.x, 2) + Math.pow(topLeft.y - topRight.y, 2));
+        double bottomWidth = Math.sqrt(Math.pow(bottomLeft.x - bottomRight.x, 2) + Math.pow(bottomLeft.y - bottomRight.y, 2));
+        double maxWidth = Math.max(upperWidth, bottomWidth);
+
+        // find the maxHeight
+        double rightHeight = Math.sqrt(Math.pow(topRight.x - bottomRight.x, 2) + Math.pow(topRight.y - bottomRight.y, 2));
+        double leftHeight = Math.sqrt(Math.pow(topLeft.x - bottomLeft.x, 2) + Math.pow(topLeft.y - bottomLeft.y, 2));
+        double maxHeight = Math.max(rightHeight, leftHeight);
+
+
+        MatOfPoint2f src = new MatOfPoint2f(topLeft, topRight, bottomRight, bottomLeft);
+
+        MatOfPoint2f dst = new MatOfPoint2f(
+                new Point(0, 0),
+                new Point( maxWidth,0),
+                new Point(maxWidth, maxHeight),
+                new Point(0, maxHeight) );
+
+
+
+        Mat warpMat = Imgproc.getPerspectiveTransform(src, dst);
+        //This is your new image as Mat
+        Mat destImage = new Mat();
+        Size warpedImageSize = new Size(maxWidth + 1, maxHeight + 1);
+
+
+        Imgproc.warpPerspective(pyrDown, destImage, warpMat, warpedImageSize);
+
+        // TODO : AL MLA RHAMIM ..
+
+        Bitmap imageMatched = Bitmap.createBitmap(destImage.cols(), destImage.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(destImage, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+        imageViewMy.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+
+        // end.
+
+        // tried to save on the device it self :
+
+        try
+        {
+            String state = Environment.getExternalStorageState();
+
+            if(!Environment.MEDIA_MOUNTED.equals(state))
+            {
+                // Not Mounted - we cant write to it.
+                return;
+            }
+            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "des2.jpeg");
+
+
+            file.createNewFile();
+
+            FileOutputStream FOS = new FileOutputStream(file, false);
+
+            imageMatched.compress(Bitmap.CompressFormat.JPEG, 100, FOS);
+
+            FOS.flush();
+            FOS.close();
+
+
+        }
+        catch (FileNotFoundException e)
+        {
+            e.printStackTrace();
+            Log.e("SavingImage:", e.getMessage());
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            Log.e("SavingImage:", e.getMessage());
+        }
+        catch (Exception e)
+        {
+            Log.e("SavingImage:", e.getMessage());
+        }
+
+
+
+        Log.v("message","End of function call");
+
+    }// End of wrapPerspective.
+
+
+
     public void colorMask(View view)
     {
         Log.v("message","Start of function call");
@@ -550,20 +688,64 @@ public class MainActivity extends AppCompatActivity
 
 
 
-        Mat intersections = new Mat();
+        Mat intersections = new Mat(pyrDown.size(), CvType.CV_32F);
+
+        Mat intersections32f = new Mat();
+
 
         // draw all the intersections. (see it ok)
+
 
         for (Point point: pointsArray)
         {
             // pyrDownGray - the blured image
             // pyrDown - the unblured image.
             circle(pyrDown, point, 5, new Scalar(255, 0, 0), 2);//Red
-            circle(intersections, point, 5, new Scalar(255, 0, 0), 2);//Red
+
+            circle(intersections, point, 0, new Scalar(255, 0, 0), 2);//Red
+
+            //intersections32f.put((int)point.x, (int)point.y, 1.0);
+
         }
 
+
+        intersections.convertTo(intersections32f, CvType.CV_8UC1);
+
+
+
+        Mat labels = Mat.zeros(intersections.rows(), intersections.cols(), CvType.CV_32F);
+        labels.put(0, 0, 1.0); // topLeft
+        labels.put(0, labels.rows() - 1, 1); // bottomLeft
+        labels.put(labels.cols() - 1, 0, 1); // topRight
+        labels.put(labels.rows() - 1, labels.cols() - 1, 1); // bottomRight
+
+
+        TermCriteria criteria = new TermCriteria(TermCriteria.COUNT, 100, 1);
+        int attempts = 50;
+        int flags = Core.KMEANS_USE_INITIAL_LABELS;
+        Mat centers = new Mat();
+
+        double res = kmeans(intersections, 4, labels, criteria, attempts, flags, centers);
+
+
+        centers.convertTo(intersections32f, CvType.CV_8UC1);
+
+
+        Bitmap imageMatched = Bitmap.createBitmap(intersections32f.cols(), intersections32f.rows(), Bitmap.Config.RGB_565);
+        Utils.matToBitmap(intersections32f, imageMatched);
+        imageViewMy.setImageBitmap(imageMatched);
+
+        /*
+
+
+
+
+
+
         Point bottomRight = new Point(0,0);
-        Point upperLeft = new Point(pointsArray[0].x, pointsArray[0].y);
+        Point topLeft = new Point(pointsArray[0].x, pointsArray[0].y);
+
+
 
         for(Point point: pointsArray)
         {
@@ -572,16 +754,52 @@ public class MainActivity extends AppCompatActivity
                 bottomRight.x = point.x;
                 bottomRight.y = point.y;
             }
-            else if(point.x + point.y < upperLeft.x + upperLeft.y)
+            else if(point.x + point.y < topLeft.x + topLeft.y)
             {
-                upperLeft.x = point.x;
-                upperLeft.y = point.y;
+                topLeft.x = point.x;
+                topLeft.y = point.y;
             }
 
         }
 
         circle(pyrDown, bottomRight, 5, new Scalar(255, 255, 0), 4);//YELLOW
-        circle(pyrDown, upperLeft, 5, new Scalar(255, 255, 0), 4);//YELLOW
+        circle(pyrDown, topLeft, 5, new Scalar(255, 255, 0), 4);//YELLOW
+
+
+
+        Point topRight = new Point(bottomRight.x, topLeft.y);
+        Point bottomLeft = new Point(topLeft.x, bottomRight.y);
+
+        //*************************************************
+        //
+        // TODO : At this point you have all 4 points.
+        //          You can do what you wishes..
+        //
+        //*************************************************
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -589,26 +807,26 @@ public class MainActivity extends AppCompatActivity
 
         //pyrDown.copyTo(intersections);
 
-        Mat intersections32f = new Mat();
-        intersections.convertTo(intersections32f, CvType.CV_32F);
+
+        //intersections.convertTo(intersections32f, CvType.CV_32F);
         intersections.release();
 
         Mat labels = Mat.zeros(intersections32f.rows(), intersections32f.cols(), CvType.CV_32F);
 
-        double[] o = labels.get(0, 0);
-        double[] o1 = labels.get(labels.rows() - 1, 0);
-        double[] o2 = labels.get(labels.rows() - 1, labels.cols() - 1);
-        double[] o3 =labels.get(0, labels.cols() - 1);
+        //double[] o = labels.get(0, 0);
+        //double[] o1 = labels.get(labels.rows() - 1, 0);
+        //double[] o2 = labels.get(labels.rows() - 1, labels.cols() - 1);
+        //double[] o3 =labels.get(0, labels.cols() - 1);
 
-        labels.put(0, 0, 1.0);
-        labels.put(labels.rows() - 1, 0, 1);
-        labels.put(labels.rows() - 1, labels.cols() - 1, 1);
-        labels.put(0, labels.cols() - 1, 1);
+        labels.put(0, 0, 1.0); // topLeft
+        labels.put(0, labels.rows() - 1, 1); // bottomLeft
+        labels.put(labels.cols() - 1, 0, 1); // topRight
+        labels.put(labels.rows() - 1, labels.cols() - 1, 1); // bottomRight
 
-        o = labels.get(0, 0);
-        o1 = labels.get(labels.rows() - 1, 0);
-        o2 = labels.get(labels.rows() - 1, labels.cols() - 1);
-        o3 =labels.get(0, labels.cols() - 1);
+        //o = labels.get(0, 0);
+        //o1 = labels.get(labels.rows() - 1, 0);
+        //o2 = labels.get(labels.rows() - 1, labels.cols() - 1);
+        //o3 =labels.get(0, labels.cols() - 1);
 
         TermCriteria criteria = new TermCriteria(TermCriteria.COUNT, 100, 1);
         int attempts = 50;
@@ -617,20 +835,22 @@ public class MainActivity extends AppCompatActivity
         double res = kmeans(intersections32f, 4, labels, criteria, attempts, flags, centers);
 
 
+        //public static double kmeans(@NotNull Mat data,
+        //int K,
+        //@NotNull Mat bestLabels,
+        //@NotNull TermCriteria criteria,
+        //int attempts,
+        //int flags)
+
+
+
         String centersString = centers.toString();
 
         Bitmap imageMatched = Bitmap.createBitmap(centers.cols(), centers.rows(), Bitmap.Config.RGB_565);
         Utils.matToBitmap(centers, imageMatched);
         imageViewMy.setImageBitmap(imageMatched);
 
-        /*
-        public static double kmeans(@NotNull Mat data,
-        int K,
-        @NotNull Mat bestLabels,
-        @NotNull TermCriteria criteria,
-        int attempts,
-        int flags)
-        */
+
         /*
 
         // Draw the horizontals lines
@@ -1350,137 +1570,6 @@ public class MainActivity extends AppCompatActivity
 
 
     }
-
-
-    /**
-     * This Func. wrap around given points.
-     * @param view
-     */
-    public void wrapPerspective(View view)
-    {
-        Log.v("message","Start of function call");
-        ImageView imageViewMy = findViewById(R.id.imageViewMatches);
-        TextView textViewMy = findViewById(R.id.textViewDist);
-        textViewMy.setMovementMethod(new ScrollingMovementMethod());
-
-
-        int MAX_KERNEL_LENGTH = 13;
-
-
-        //Image Input :
-        Bitmap one =
-                drawableToBitmap(getResources().getDrawable(R.drawable.dsc_1304_cutted_bigger, this.getTheme()));
-        Mat img1 = new Mat();
-        Utils.bitmapToMat(one, img1, true);// moving one to img1 Mat structure.
-        System.gc();
-
-        // Pyramid down :
-        // https://docs.opencv.org/3.4.5/d4/d1f/tutorial_pyramids.html
-        //Imgproc.pyrDown(img1, pyrDown, new Size(img1.cols() / 2, img1.rows() / 2));
-        // Resize down :
-        Mat pyrDown = new Mat();
-        Imgproc.resize(img1, pyrDown, new Size(img1.cols() / 10, img1.rows() / 10));
-        img1.release();
-
-        // convert the image to gray scale.
-        Mat pyrDownGray = new Mat();
-        Imgproc.cvtColor(pyrDown, pyrDownGray, Imgproc.COLOR_BGR2GRAY);
-        //pyrDown.release();
-
-
-
-        Point topLeft = new Point(36, 28);
-        Point topRight = new Point(162, 87);
-        Point bottomRight = new Point(184, 343);
-        Point bottomLeft = new Point(36, 323);
-
-        circle(pyrDown, topLeft, 2, new Scalar(0, 255, 0), 2);
-        circle(pyrDown, topRight, 2, new Scalar(0, 255, 0), 2);
-        circle(pyrDown, bottomRight, 2, new Scalar(0, 255, 0), 2);
-        circle(pyrDown, bottomLeft, 2, new Scalar(0, 255, 0), 2);
-
-
-        double upperWidth = Math.sqrt(Math.pow(topLeft.x - topRight.x, 2) + Math.pow(topLeft.y - topRight.y, 2));
-        double bottomWidth = Math.sqrt(Math.pow(bottomLeft.x - bottomRight.x, 2) + Math.pow(bottomLeft.y - bottomRight.y, 2));
-        double maxWidth = Math.max(upperWidth, bottomWidth);
-
-        double rightHeight = Math.sqrt(Math.pow(topRight.x - bottomRight.x, 2) + Math.pow(topRight.y - bottomRight.y, 2));
-        double leftHeight = Math.sqrt(Math.pow(topLeft.x - bottomLeft.x, 2) + Math.pow(topLeft.y - bottomLeft.y, 2));
-        double maxHeight = Math.max(rightHeight, leftHeight);
-
-
-        MatOfPoint2f src = new MatOfPoint2f(topLeft, topRight, bottomRight, bottomLeft);
-
-        MatOfPoint2f dst = new MatOfPoint2f(
-                new Point(0, 0),
-                new Point( maxWidth,0),
-                new Point(maxWidth, maxHeight),
-                new Point(0, maxHeight) );
-
-
-
-        Mat warpMat = Imgproc.getPerspectiveTransform(src, dst);
-        //This is you new image as Mat
-        Mat destImage = new Mat();
-        Size warpedImageSize = new Size(maxWidth + 1, maxHeight + 1);
-        Imgproc.warpPerspective(pyrDown, destImage, warpMat, warpedImageSize);
-
-
-        // pyrDownGray - the blured image
-        // pyrDown - the unblured image.
-        // Show the Probabilistic Hough Line transform
-        Bitmap imageMatched = Bitmap.createBitmap(destImage.cols(), destImage.rows(), Bitmap.Config.RGB_565);
-        Utils.matToBitmap(destImage, imageMatched);
-        imageViewMy.setImageBitmap(imageMatched);
-        imageViewMy.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-
-        try
-        {
-            String state = Environment.getExternalStorageState();
-
-            if(!Environment.MEDIA_MOUNTED.equals(state))
-            {
-                // Not Mounted - we cant write to it.
-                return;
-            }
-            File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "des2.jpeg");
-
-
-            file.createNewFile();
-
-            FileOutputStream FOS = new FileOutputStream(file, false);
-
-            imageMatched.compress(Bitmap.CompressFormat.JPEG, 100, FOS);
-
-            FOS.flush();
-            FOS.close();
-
-
-        }
-        catch (FileNotFoundException e)
-        {
-            e.printStackTrace();
-            Log.e("SavingImage:", e.getMessage());
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
-            Log.e("SavingImage:", e.getMessage());
-        }
-        catch (Exception e)
-        {
-            Log.e("SavingImage:", e.getMessage());
-        }
-
-
-
-        //Img_hash
-
-
-
-        Log.v("message","End of function call");
-
-    }// End of wrapPerspective.
 
 
 
