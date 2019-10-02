@@ -1,6 +1,6 @@
 # OpenCV
 
-AndroidAppPHash/MyApplication - Android PHash working project. (26 line of pAhsh Project)
+AndroidAppPHash/MyApplication - Android PHash working project. (26 line of PHhsh Project)
 
 CVApplication - The main workbench project. (3700 lines of code - gists of OpenCV Algo.)
 
@@ -27,6 +27,8 @@ https://docs.opencv.org/master/d2/d0b/tutorial_periodic_noise_removing_filter.ht
 https://docs.opencv.org/master/d2/d96/tutorial_py_table_of_contents_imgproc.html
 
 **3. Shade removal.**
+
+https://answers.opencv.org/question/162297/how-to-remove-shadow-from-scanned-documents-using-opencv/
 
 **4. CrisCle .**
 
