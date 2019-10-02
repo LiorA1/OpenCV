@@ -9,3 +9,25 @@ ParkAdvisor & parkMe - draft basic UI projects. ( Two basic Activities.)
 picsOfAdvancement - Images that show parts of the work been done.
 
 untitiled - Java (intelliJ) PHash working project. (95 lines of Phash Project..)
+
+===============================================================================
+
+## Personal Objectives -
+
+**1. Check DocScanner.**
+
+**2. Improve Image Quality. (Opening, Blur, thresholding)**
+
+https://answers.opencv.org/question/42204/converting-image-from-grayscale-to-binary/
+
+https://docs.opencv.org/master/db/d8e/tutorial_threshold.html
+
+https://docs.opencv.org/master/d2/d0b/tutorial_periodic_noise_removing_filter.html
+
+https://docs.opencv.org/master/d2/d96/tutorial_py_table_of_contents_imgproc.html
+
+**3. Shade removal.**
+
+**4. CrisCle .**
+
+
