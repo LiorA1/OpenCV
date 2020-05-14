@@ -1,4 +1,4 @@
-
+//import System;
 
 import com.github.kilianB.hash.Hash;
 import com.github.kilianB.hashAlgorithms.AverageHash;
